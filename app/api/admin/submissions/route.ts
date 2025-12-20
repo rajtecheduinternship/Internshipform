@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { db } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,13 +16,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch submissions from Supabase
-    const supabase = createServerClient();
-
-    const { data: submissions, error } = await supabase
-      .from('internship_applications')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // Fetch submissions from database
+    const { data: submissions, error } = await db.getAllApplications();
 
     if (error) {
       console.error('Database error:', error);

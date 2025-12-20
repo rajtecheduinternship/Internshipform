@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { InternshipFormData } from '@/lib/types';
 
 // In-memory rate limiting store (reset on server restart)
@@ -173,15 +173,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create Supabase client
-    const supabase = createServerClient();
-
     // Check for duplicate email in database
-    const { data: existingSubmission } = await supabase
-      .from('internship_applications')
-      .select('id')
-      .eq('email_address', data.emailAddress.toLowerCase())
-      .single();
+    const existingSubmission = await db.findByEmail(data.emailAddress);
 
     if (existingSubmission) {
       return NextResponse.json(
@@ -191,11 +184,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for duplicate university roll number
-    const { data: existingRollNumber } = await supabase
-      .from('internship_applications')
-      .select('id')
-      .eq('university_roll_number', data.universityRollNumber)
-      .single();
+    const existingRollNumber = await db.findByRollNumber(data.universityRollNumber);
 
     if (existingRollNumber) {
       return NextResponse.json(
@@ -205,31 +194,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert into database
-    const { error: insertError } = await supabase
-      .from('internship_applications')
-      .insert({
-        student_name: data.studentName.trim(),
-        father_name: data.fatherName.trim(),
-        mother_name: data.motherName.trim(),
-        gender: data.gender,
-        date_of_birth: data.dateOfBirth,
-        address: data.address.trim(),
-        internship_topic: data.internshipTopic,
-        college_name: data.collegeName,
-        honours_subject: data.honoursSubject,
-        current_semester: data.currentSemester,
-        class_roll_no: data.classRollNo.trim(),
-        university_name: data.universityName,
-        university_roll_number: data.universityRollNumber.trim(),
-        university_registration_number: data.universityRegistrationNumber.trim(),
-        contact_number: data.contactNumber,
-        whatsapp_number: data.whatsappNumber || null,
-        email_address: data.emailAddress.toLowerCase().trim(),
-        photo: data.photo || null,
-        signature: data.signature || null,
-        ip_address: clientIP,
-        created_at: new Date().toISOString(),
-      });
+    const { error: insertError } = await db.insertApplication({
+      student_name: data.studentName.trim(),
+      father_name: data.fatherName.trim(),
+      mother_name: data.motherName.trim(),
+      gender: data.gender,
+      date_of_birth: data.dateOfBirth,
+      address: data.address.trim(),
+      internship_topic: data.internshipTopic,
+      college_name: data.collegeName,
+      honours_subject: data.honoursSubject,
+      current_semester: data.currentSemester,
+      class_roll_no: data.classRollNo.trim(),
+      university_name: data.universityName,
+      university_roll_number: data.universityRollNumber.trim(),
+      university_registration_number: data.universityRegistrationNumber.trim(),
+      contact_number: data.contactNumber,
+      whatsapp_number: data.whatsappNumber || undefined,
+      email_address: data.emailAddress.toLowerCase().trim(),
+      photo: data.photo || undefined,
+      signature: data.signature || undefined,
+      ip_address: clientIP,
+      created_at: new Date().toISOString(),
+    });
 
     if (insertError) {
       console.error('Database insert error:', insertError);
