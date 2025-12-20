@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- T letter in green -->
+  <path d="M10 10 L60 10 L60 25 L42 25 L42 90 L28 90 L28 25 L10 25 Z" fill="#2E7D32"/>
+
+  <!-- R letter in green -->
+  <path d="M65 10 L100 10 Q115 10 115 30 Q115 45 100 50 L115 90 L100 90 L87 55 L80 55 L80 90 L65 90 Z M80 25 L80 42 L95 42 Q100 42 100 33.5 Q100 25 95 25 Z" fill="#2E7D32"/>
+
+  <!-- Red cross/plus between T and R -->
+  <rect x="48" y="35" width="20" height="6" fill="#D32F2F"/>
+  <rect x="55" y="28" width="6" height="20" fill="#D32F2F"/>
+</svg>
