@@ -308,7 +308,7 @@ export default function InternshipForm() {
       {/* Top Banner */}
       <div className="relative bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 text-white py-2 sm:py-3 px-3 sm:px-4 text-center shadow-lg backdrop-blur-sm bg-opacity-90">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-        <span className="relative font-semibold tracking-wide text-xs sm:text-base whitespace-nowrap">Patliputra University Internship Program 2024-25</span>
+        <span className="relative font-semibold tracking-wide text-xs sm:text-base whitespace-nowrap">Patliputra University Internship Program 2025-26</span>
       </div>
 
       <div className="relative max-w-4xl mx-auto py-8 px-4">
