@@ -42,6 +42,7 @@ export interface FormSubmission extends InternshipFormData {
 export const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
 
 export const INTERNSHIP_TOPICS = [
+  'Master Modern Office Skills',
   'Basic IT and Digital Skill',
   'Basic IT and Office Skill',
   'Basic IT and Artificial Intelligence (AI)',
@@ -52,6 +53,7 @@ export const INTERNSHIP_TOPICS = [
 ];
 
 export const COLLEGES = [
+  'S.P. College, Hilsa',
   'Govt. Degree College, Rajgir',
   'Kisan College, Nalanda',
   'Nalanda College, Biharsharif',

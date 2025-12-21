@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import JSZip from 'jszip';
 
 interface Submission {
   id: string;
@@ -89,14 +90,16 @@ export default function AdminPage() {
     const headers = [
       'Student Name', 'Father Name', 'Mother Name', 'Gender', 'DOB', 'Address',
       'Internship Topic', 'College', 'Honours Subject', 'Semester', 'Class Roll',
-      'University', 'Uni Roll No', 'Uni Reg No', 'Contact', 'WhatsApp', 'Email', 'Submitted At'
+      'University', 'Uni Roll No', 'Uni Reg No', 'Contact', 'WhatsApp', 'Email',
+      'Has Photo', 'Has Signature', 'Submitted At'
     ];
 
     const rows = submissions.map(s => [
       s.student_name, s.father_name, s.mother_name, s.gender, s.date_of_birth, s.address,
       s.internship_topic, s.college_name, s.honours_subject, s.current_semester, s.class_roll_no,
       s.university_name, s.university_roll_number, s.university_registration_number,
-      s.contact_number, s.whatsapp_number || '', s.email_address, s.created_at
+      s.contact_number, s.whatsapp_number || '', s.email_address,
+      s.photo ? 'Yes' : 'No', s.signature ? 'Yes' : 'No', s.created_at
     ]);
 
     const csvContent = [headers, ...rows]
@@ -110,6 +113,64 @@ export default function AdminPage() {
     link.download = `internship_applications_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Helper function to download a single image
+  const downloadImage = (base64Data: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = base64Data;
+    link.download = filename;
+    link.click();
+  };
+
+  // Download all images as ZIP
+  const [downloadingZip, setDownloadingZip] = useState(false);
+
+  const downloadAllImagesAsZip = async () => {
+    setDownloadingZip(true);
+    try {
+      const zip = new JSZip();
+      const photosFolder = zip.folder('photos');
+      const signaturesFolder = zip.folder('signatures');
+
+      for (const submission of submissions) {
+        // Clean filename - remove special characters
+        const safeName = submission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
+        const rollNo = submission.university_roll_number.replace(/[^a-zA-Z0-9]/g, '_');
+
+        if (submission.photo && photosFolder) {
+          // Extract base64 data and extension
+          const photoMatch = submission.photo.match(/^data:image\/(\w+);base64,(.+)$/);
+          if (photoMatch) {
+            const extension = photoMatch[1];
+            const base64Data = photoMatch[2];
+            photosFolder.file(`${safeName}_${rollNo}.${extension}`, base64Data, { base64: true });
+          }
+        }
+
+        if (submission.signature && signaturesFolder) {
+          const sigMatch = submission.signature.match(/^data:image\/(\w+);base64,(.+)$/);
+          if (sigMatch) {
+            const extension = sigMatch[1];
+            const base64Data = sigMatch[2];
+            signaturesFolder.file(`${safeName}_${rollNo}_signature.${extension}`, base64Data, { base64: true });
+          }
+        }
+      }
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `internship_images_${new Date().toISOString().split('T')[0]}.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error creating ZIP:', error);
+      alert('Failed to create ZIP file. Please try again.');
+    } finally {
+      setDownloadingZip(false);
+    }
   };
 
   const filteredSubmissions = submissions.filter(s =>
@@ -215,7 +276,21 @@ export default function AdminPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              <span>Export</span>
+              <span>Export CSV</span>
+            </button>
+            <button
+              onClick={downloadAllImagesAsZip}
+              disabled={downloadingZip || submissions.length === 0}
+              className="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center disabled:opacity-50"
+            >
+              {downloadingZip ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              )}
+              <span>{downloadingZip ? 'Creating...' : 'Images ZIP'}</span>
             </button>
           </div>
         </div>
@@ -385,7 +460,7 @@ export default function AdminPage() {
             <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
               {/* Photo & Signature */}
               {(selectedSubmission.photo || selectedSubmission.signature) && (
-                <div className="flex flex-wrap gap-4 justify-center">
+                <div className="flex flex-wrap gap-6 justify-center">
                   {selectedSubmission.photo && (
                     <div className="text-center">
                       <Image
@@ -396,6 +471,19 @@ export default function AdminPage() {
                         className="rounded border object-cover"
                       />
                       <p className="text-xs text-gray-500 mt-1">Photo</p>
+                      <button
+                        onClick={() => {
+                          const ext = selectedSubmission.photo?.match(/^data:image\/(\w+);/)?.[1] || 'jpg';
+                          const safeName = selectedSubmission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
+                          downloadImage(selectedSubmission.photo!, `${safeName}_photo.${ext}`);
+                        }}
+                        className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1 mx-auto"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download
+                      </button>
                     </div>
                   )}
                   {selectedSubmission.signature && (
@@ -408,6 +496,19 @@ export default function AdminPage() {
                         className="rounded border object-contain bg-white"
                       />
                       <p className="text-xs text-gray-500 mt-1">Signature</p>
+                      <button
+                        onClick={() => {
+                          const ext = selectedSubmission.signature?.match(/^data:image\/(\w+);/)?.[1] || 'png';
+                          const safeName = selectedSubmission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
+                          downloadImage(selectedSubmission.signature!, `${safeName}_signature.${ext}`);
+                        }}
+                        className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1 mx-auto"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download
+                      </button>
                     </div>
                   )}
                 </div>
