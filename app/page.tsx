@@ -321,37 +321,51 @@ export default function InternshipForm() {
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
 
             {/* Company Header */}
-            <div className="relative bg-gradient-to-r from-slate-900/80 via-slate-800/80 to-slate-900/80 p-4 sm:p-8 backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 sm:gap-5">
+            <div className="relative bg-gradient-to-r from-slate-900/80 via-slate-800/80 to-slate-900/80 p-6 sm:p-10 backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-6">
+                <div className="flex items-center gap-4 sm:gap-6 flex-1 min-w-0">
                   {/* 3D Logo */}
                   <div className="relative transform hover:scale-110 transition-transform duration-300 flex-shrink-0">
                     <div className="absolute inset-0 bg-emerald-500 rounded-xl sm:rounded-2xl blur-xl opacity-50 group-hover:opacity-70 transition-opacity" />
-                    <div className="relative bg-white rounded-xl sm:rounded-2xl p-2 sm:p-3 shadow-2xl transform hover:rotate-3 transition-transform duration-300">
+                    <div className="relative bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-2xl transform hover:rotate-3 transition-transform duration-300">
                       <Image
                         src="/logo.png"
                         alt="RTS Logo"
-                        width={70}
-                        height={60}
-                        className="h-10 sm:h-14 w-auto"
+                        width={80}
+                        height={70}
+                        className="h-12 sm:h-16 w-auto"
                       />
                     </div>
                   </div>
-                  <div className="min-w-0">
-                    <h1 className="text-sm sm:text-2xl md:text-4xl font-bold text-white drop-shadow-lg whitespace-nowrap">
+                  <div className="min-w-0 flex-1">
+                    <h1 className="text-base sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white drop-shadow-lg">
                       Rajtech Technological Systems
                     </h1>
-                    <p className="text-emerald-300 text-[10px] sm:text-sm md:text-lg font-medium mt-1 sm:mt-2 flex items-center gap-1 sm:gap-2 whitespace-nowrap">
-                      <span className="inline-block w-1 h-1 sm:w-2 sm:h-2 bg-emerald-400 rounded-full animate-pulse" />
+                    <p className="text-emerald-300 text-xs sm:text-base md:text-lg lg:text-xl font-medium mt-2 sm:mt-3 flex items-center gap-1 sm:gap-2">
+                      <span className="inline-block w-1.5 h-1.5 sm:w-2.5 sm:h-2.5 bg-emerald-400 rounded-full animate-pulse flex-shrink-0" />
                       Excellence in Computer Education
                     </p>
+                    <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-emerald-100/90 font-medium space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <span className="truncate">Ph: +91 9931005560, +91 89869962080</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <span className="truncate">Email: rtseducationintern@gmail.com</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <a
                   href="https://rtseducation.in/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hidden md:flex items-center gap-2 bg-white/10 hover:bg-white/20 px-5 py-3 rounded-xl transition-all duration-300 text-sm border border-white/20 hover:border-white/40 hover:scale-105 hover:shadow-lg"
+                  className="hidden lg:flex items-center gap-2 bg-white/10 hover:bg-white/20 px-5 py-3 rounded-xl transition-all duration-300 text-sm border border-white/20 hover:border-white/40 hover:scale-105 hover:shadow-lg flex-shrink-0 whitespace-nowrap"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -362,17 +376,17 @@ export default function InternshipForm() {
             </div>
 
             {/* Form Title with gradient */}
-            <div className="relative bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 px-8 py-5 overflow-hidden">
+            <div className="relative bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 px-6 py-3 overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-              <div className="relative flex items-center gap-4">
-                <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm shadow-inner">
-                  <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <div className="relative flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm shadow-inner">
+                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white drop-shadow-md">Internship Registration Form</h2>
-                  <p className="text-emerald-100 text-sm mt-1">Fill all required fields carefully</p>
+                  <h2 className="text-lg font-bold text-white drop-shadow-md">Internship Registration Form</h2>
+                  <p className="text-emerald-100 text-xs mt-0.5">Fill all required fields carefully</p>
                 </div>
               </div>
             </div>
@@ -991,6 +1005,14 @@ export default function InternshipForm() {
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
             rtseducation.in
           </a>
+          <div className="mt-4 flex flex-col items-center gap-2 text-sm text-white/60">
+            <p>
+              <span className="font-semibold text-emerald-400">Contact:</span> +91 9931005560, +91 89869962080
+            </p>
+            <p>
+              <span className="font-semibold text-emerald-400">Email:</span> rtseducationintern@gmail.com
+            </p>
+          </div>
         </div >
       </div >
 

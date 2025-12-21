@@ -52,6 +52,12 @@ export const INTERNSHIP_TOPICS = [
 ];
 
 export const COLLEGES = [
+  'Govt. Degree College, Rajgir',
+  'Kisan College, Nalanda',
+  'Nalanda College, Biharsharif',
+  'Nalanda Mahila College, Biharsharif',
+  'S P M College, Udantpuri, Nalanda',
+  'S U College, Hilsa',
   'A.N. College, Patna',
   'Patna Science College',
   'Patna Women\'s College',
@@ -63,12 +69,6 @@ export const COLLEGES = [
   'J.D. Women\'s College',
   'Ram Lakhan Singh Yadav College',
   'Patliputra University (Main Campus)',
-  'Govt. Degree College, Rajgir',
-  'Kisan College, Nalanda',
-  'Nalanda College, Biharsharif',
-  'Nalanda Mahila College, Biharsharif',
-  'S P M College, Udantpuri, Nalanda',
-  'S U College, Hilsa',
   'Other',
 ];
 
