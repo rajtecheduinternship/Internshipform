@@ -159,4 +159,173 @@ export const db = {
       return { data, error: error ? new Error(error.message) : null };
     }
   },
+
+  // ==================== RATE LIMITING ====================
+
+  /**
+   * Check and update rate limit for an IP address
+   * Returns { allowed: boolean, remaining: number, resetAt: Date }
+   */
+  async checkRateLimit(
+    ip: string,
+    limitType: 'submission' | 'admin' = 'submission',
+    maxAttempts: number = 5,
+    windowMs: number = 60 * 60 * 1000 // 1 hour default
+  ): Promise<{ allowed: boolean; remaining: number; resetAt: Date; error?: Error }> {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - windowMs);
+
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      try {
+        // Clean up old entries and get current count in a transaction
+        await pool.query('BEGIN');
+
+        // Delete old entries
+        await pool.query(
+          'DELETE FROM rate_limits WHERE created_at < $1',
+          [windowStart.toISOString()]
+        );
+
+        // Get current count
+        const countResult = await pool.query(
+          'SELECT COUNT(*) as count, MAX(created_at) as last_attempt FROM rate_limits WHERE ip_address = $1 AND limit_type = $2 AND created_at >= $3',
+          [ip, limitType, windowStart.toISOString()]
+        );
+
+        const currentCount = parseInt(countResult.rows[0]?.count || '0', 10);
+        const remaining = Math.max(0, maxAttempts - currentCount - 1);
+        const resetAt = new Date(now.getTime() + windowMs);
+
+        if (currentCount >= maxAttempts) {
+          await pool.query('COMMIT');
+          return { allowed: false, remaining: 0, resetAt };
+        }
+
+        // Record this attempt
+        await pool.query(
+          'INSERT INTO rate_limits (ip_address, limit_type, created_at) VALUES ($1, $2, $3)',
+          [ip, limitType, now.toISOString()]
+        );
+
+        await pool.query('COMMIT');
+        return { allowed: true, remaining, resetAt };
+      } catch (err) {
+        await pool.query('ROLLBACK');
+        // Fallback to allowing the request if DB fails
+        console.error('Rate limit check failed:', err);
+        return { allowed: true, remaining: maxAttempts, resetAt: new Date(now.getTime() + windowMs), error: err as Error };
+      }
+    } else {
+      const supabase = getSupabaseClient();
+      try {
+        // Delete old entries
+        await supabase
+          .from('rate_limits')
+          .delete()
+          .lt('created_at', windowStart.toISOString());
+
+        // Get current count
+        const { count, error: countError } = await supabase
+          .from('rate_limits')
+          .select('*', { count: 'exact', head: true })
+          .eq('ip_address', ip)
+          .eq('limit_type', limitType)
+          .gte('created_at', windowStart.toISOString());
+
+        if (countError) {
+          console.error('Rate limit count error:', countError);
+          return { allowed: true, remaining: maxAttempts, resetAt: new Date(now.getTime() + windowMs), error: new Error(countError.message) };
+        }
+
+        const currentCount = count || 0;
+        const remaining = Math.max(0, maxAttempts - currentCount - 1);
+        const resetAt = new Date(now.getTime() + windowMs);
+
+        if (currentCount >= maxAttempts) {
+          return { allowed: false, remaining: 0, resetAt };
+        }
+
+        // Record this attempt
+        const { error: insertError } = await supabase
+          .from('rate_limits')
+          .insert({ ip_address: ip, limit_type: limitType, created_at: now.toISOString() });
+
+        if (insertError) {
+          console.error('Rate limit insert error:', insertError);
+        }
+
+        return { allowed: true, remaining, resetAt };
+      } catch (err) {
+        console.error('Rate limit check failed:', err);
+        return { allowed: true, remaining: maxAttempts, resetAt: new Date(now.getTime() + windowMs), error: err as Error };
+      }
+    }
+  },
+
+  /**
+   * Record email cooldown
+   */
+  async checkEmailCooldown(
+    email: string,
+    cooldownMs: number = 30 * 60 * 1000 // 30 minutes default
+  ): Promise<{ allowed: boolean; waitTimeMs: number }> {
+    const now = new Date();
+    const cooldownStart = new Date(now.getTime() - cooldownMs);
+
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      try {
+        const result = await pool.query(
+          'SELECT created_at FROM email_cooldowns WHERE email = $1 AND created_at >= $2 ORDER BY created_at DESC LIMIT 1',
+          [email.toLowerCase(), cooldownStart.toISOString()]
+        );
+
+        if (result.rows.length > 0) {
+          const lastAttempt = new Date(result.rows[0].created_at);
+          const waitTimeMs = cooldownMs - (now.getTime() - lastAttempt.getTime());
+          return { allowed: false, waitTimeMs };
+        }
+
+        // Record this email attempt
+        await pool.query(
+          'INSERT INTO email_cooldowns (email, created_at) VALUES ($1, $2) ON CONFLICT (email) DO UPDATE SET created_at = $2',
+          [email.toLowerCase(), now.toISOString()]
+        );
+
+        return { allowed: true, waitTimeMs: 0 };
+      } catch (err) {
+        console.error('Email cooldown check failed:', err);
+        return { allowed: true, waitTimeMs: 0 };
+      }
+    } else {
+      const supabase = getSupabaseClient();
+      try {
+        const { data } = await supabase
+          .from('email_cooldowns')
+          .select('created_at')
+          .eq('email', email.toLowerCase())
+          .gte('created_at', cooldownStart.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (data) {
+          const lastAttempt = new Date(data.created_at);
+          const waitTimeMs = cooldownMs - (now.getTime() - lastAttempt.getTime());
+          return { allowed: false, waitTimeMs };
+        }
+
+        // Record this email attempt
+        await supabase
+          .from('email_cooldowns')
+          .upsert({ email: email.toLowerCase(), created_at: now.toISOString() });
+
+        return { allowed: true, waitTimeMs: 0 };
+      } catch (err) {
+        console.error('Email cooldown check failed:', err);
+        return { allowed: true, waitTimeMs: 0 };
+      }
+    }
+  },
 };

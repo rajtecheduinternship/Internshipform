@@ -16,6 +16,8 @@ export interface InternshipFormData {
   universityName: string;
   universityRollNumber: string;
   universityRegistrationNumber: string;
+  otherCollegeName?: string;
+  otherHonoursSubject?: string;
 
   // Contact Information
   contactNumber: string;
@@ -40,21 +42,13 @@ export interface FormSubmission extends InternshipFormData {
 export const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
 
 export const INTERNSHIP_TOPICS = [
-  'Web Development',
-  'Mobile App Development',
-  'Data Science',
-  'Machine Learning',
-  'Cloud Computing',
-  'Cyber Security',
-  'Database Management',
-  'Software Testing',
-  'UI/UX Design',
-  'Digital Marketing',
-  'Python Programming',
-  'Java Programming',
-  'C/C++ Programming',
-  'Artificial Intelligence',
-  'Internet of Things (IoT)',
+  'Basic IT and Digital Skill',
+  'Basic IT and Office Skill',
+  'Basic IT and Artificial Intelligence (AI)',
+  'Basic IT and Printing',
+  'Basic IT and Accounting',
+  'Basic IT and Tally Prime with GST',
+  'Basic IT with Office Management',
 ];
 
 export const COLLEGES = [
@@ -69,6 +63,12 @@ export const COLLEGES = [
   'J.D. Women\'s College',
   'Ram Lakhan Singh Yadav College',
   'Patliputra University (Main Campus)',
+  'Govt. Degree College, Rajgir',
+  'Kisan College, Nalanda',
+  'Nalanda College, Biharsharif',
+  'Nalanda Mahila College, Biharsharif',
+  'S P M College, Udantpuri, Nalanda',
+  'S U College, Hilsa',
   'Other',
 ];
 

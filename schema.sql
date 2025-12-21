@@ -30,3 +30,40 @@ CREATE TABLE IF NOT EXISTS internship_applications (
 CREATE INDEX IF NOT EXISTS idx_email ON internship_applications(email_address);
 CREATE INDEX IF NOT EXISTS idx_roll_number ON internship_applications(university_roll_number);
 CREATE INDEX IF NOT EXISTS idx_created_at ON internship_applications(created_at DESC);
+
+-- ==================== RATE LIMITING TABLES ====================
+
+-- Rate limits table for IP-based rate limiting
+-- limit_type can be 'submission' or 'admin'
+CREATE TABLE IF NOT EXISTS rate_limits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ip_address TEXT NOT NULL,
+  limit_type TEXT NOT NULL DEFAULT 'submission',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for rate limiting lookups
+CREATE INDEX IF NOT EXISTS idx_rate_limits_ip ON rate_limits(ip_address, limit_type);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_created ON rate_limits(created_at);
+
+-- Email cooldowns table to prevent rapid resubmission with same email
+CREATE TABLE IF NOT EXISTS email_cooldowns (
+  email TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for email cooldown cleanup
+CREATE INDEX IF NOT EXISTS idx_email_cooldowns_created ON email_cooldowns(created_at);
+
+-- Suspicious activity tracking for temporary IP bans
+-- activity_type can be 'failed_validation', 'rate_limit_exceeded', etc.
+CREATE TABLE IF NOT EXISTS suspicious_activity (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ip_address TEXT NOT NULL,
+  activity_type TEXT NOT NULL,
+  details TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_suspicious_ip ON suspicious_activity(ip_address);
+CREATE INDEX IF NOT EXISTS idx_suspicious_created ON suspicious_activity(created_at);

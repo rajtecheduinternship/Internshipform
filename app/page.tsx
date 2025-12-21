@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import Script from 'next/script';
 import {
   InternshipFormData,
   GENDER_OPTIONS,
@@ -76,6 +77,8 @@ const initialFormData: InternshipFormData = {
   photo: '',
   signature: '',
   declarationAccepted: false,
+  otherCollegeName: '',
+  otherHonoursSubject: '',
 };
 
 // Animated background particles
@@ -105,9 +108,36 @@ export default function InternshipForm() {
   const signatureInputRef = useRef<HTMLInputElement>(null);
 
   const [honeypot, setHoneypot] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const [formToken, setFormToken] = useState<string>(''); // Server-side signed token
+  const turnstileWidgetId = useRef<string | null>(null);
+
+  // Turnstile callback
+  const onTurnstileVerify = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
+
+  // Make callback available globally for Turnstile
+  useEffect(() => {
+    (window as unknown as { onTurnstileVerify: (token: string) => void }).onTurnstileVerify = onTurnstileVerify;
+  }, [onTurnstileVerify]);
 
   useEffect(() => {
     setMounted(true);
+
+    // Fetch server-side form token for timing verification
+    const fetchFormToken = async () => {
+      try {
+        const response = await fetch('/api/form-token');
+        if (response.ok) {
+          const data = await response.json();
+          setFormToken(data.token);
+        }
+      } catch (error) {
+        console.error('Failed to fetch form token:', error);
+      }
+    };
+    fetchFormToken();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -161,7 +191,9 @@ export default function InternshipForm() {
     if (!formData.address.trim()) return 'Address is required';
     if (!formData.internshipTopic) return 'Please select Internship Topic';
     if (!formData.collegeName) return 'Please select College Name';
+    if (formData.collegeName === 'Other' && !formData.otherCollegeName?.trim()) return 'Please enter College Name';
     if (!formData.honoursSubject) return 'Please select Honours Subject';
+    if (formData.honoursSubject === 'Other' && !formData.otherHonoursSubject?.trim()) return 'Please enter Honours Subject';
     if (!formData.currentSemester) return 'Please select Current Semester';
     if (!formData.classRollNo.trim()) return 'Class Roll No is required';
     if (!formData.universityRollNumber.trim()) return 'University Roll Number is required';
@@ -197,7 +229,11 @@ export default function InternshipForm() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          turnstileToken,
+          formToken, // Server-side signed token for timing verification
+        }),
       });
 
       const result = await response.json();
@@ -207,20 +243,47 @@ export default function InternshipForm() {
         handleReset();
       } else {
         setSubmitStatus({ type: 'error', message: result.error || 'Failed to submit application' });
+        // Reset Turnstile to get a new token for retry
+        if (typeof window !== 'undefined' && (window as unknown as { resetTurnstile?: () => void }).resetTurnstile) {
+          (window as unknown as { resetTurnstile: () => void }).resetTurnstile();
+          setTurnstileToken('');
+        }
       }
     } catch {
       setSubmitStatus({ type: 'error', message: 'Network error. Please try again.' });
+      // Reset Turnstile on network error too
+      if (typeof window !== 'undefined' && (window as unknown as { resetTurnstile?: () => void }).resetTurnstile) {
+        (window as unknown as { resetTurnstile: () => void }).resetTurnstile();
+        setTurnstileToken('');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setFormData(initialFormData);
     setPhotoPreview(null);
     setSignaturePreview(null);
     if (photoInputRef.current) photoInputRef.current.value = '';
     if (signatureInputRef.current) signatureInputRef.current.value = '';
+
+    // Reset Turnstile widget
+    if (typeof window !== 'undefined' && (window as unknown as { resetTurnstile?: () => void }).resetTurnstile) {
+      (window as unknown as { resetTurnstile: () => void }).resetTurnstile();
+      setTurnstileToken('');
+    }
+
+    // Fetch a new form token for the next submission
+    try {
+      const response = await fetch('/api/form-token');
+      if (response.ok) {
+        const data = await response.json();
+        setFormToken(data.token);
+      }
+    } catch (error) {
+      console.error('Failed to fetch new form token:', error);
+    }
   };
 
   return (
@@ -500,6 +563,16 @@ export default function InternshipForm() {
                         <option key={college} value={college}>{college}</option>
                       ))}
                     </select>
+                    {formData.collegeName === 'Other' && (
+                      <input
+                        type="text"
+                        name="otherCollegeName"
+                        value={formData.otherCollegeName}
+                        onChange={handleInputChange}
+                        placeholder="Enter College Name"
+                        className="w-full mt-3 px-5 py-4 bg-white/10 border-2 border-white/20 rounded-xl focus:border-blue-400 focus:bg-white/15 transition-all duration-300 text-white placeholder-white/40 backdrop-blur-sm focus:shadow-lg focus:shadow-blue-500/20 focus:-translate-y-0.5"
+                      />
+                    )}
                   </div>
 
                   <div>
@@ -517,6 +590,16 @@ export default function InternshipForm() {
                         <option key={subject} value={subject}>{subject}</option>
                       ))}
                     </select>
+                    {formData.honoursSubject === 'Other' && (
+                      <input
+                        type="text"
+                        name="otherHonoursSubject"
+                        value={formData.otherHonoursSubject}
+                        onChange={handleInputChange}
+                        placeholder="Enter Honours Subject"
+                        className="w-full mt-3 px-5 py-4 bg-white/10 border-2 border-white/20 rounded-xl focus:border-blue-400 focus:bg-white/15 transition-all duration-300 text-white placeholder-white/40 backdrop-blur-sm focus:shadow-lg focus:shadow-blue-500/20 focus:-translate-y-0.5"
+                      />
+                    )}
                   </div>
 
                   <div>
@@ -802,6 +885,38 @@ export default function InternshipForm() {
             </div>
           </div>
 
+          {/* Turnstile CAPTCHA */}
+          <div className="flex justify-center items-center py-4">
+            <div id="cf-turnstile-container" className="min-h-[65px]"></div>
+          </div>
+
+          <Script
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback"
+            async={true}
+            defer={true}
+          />
+          <Script id="turnstile-callback" strategy="afterInteractive">
+            {`
+              window.onloadTurnstileCallback = function () {
+                if (window.turnstile) {
+                  window.turnstileWidgetId = window.turnstile.render('#cf-turnstile-container', {
+                    sitekey: '${process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""}',
+                    callback: function(token) {
+                      window.onTurnstileVerify(token);
+                    },
+                    theme: 'dark',
+                  });
+                }
+              };
+              // Function to reset Turnstile widget
+              window.resetTurnstile = function() {
+                if (window.turnstile && window.turnstileWidgetId) {
+                  window.turnstile.reset(window.turnstileWidgetId);
+                }
+              };
+            `}
+          </Script>
+
           {/* Submit Buttons */}
           <div
             className={`flex flex-col sm:flex-row gap-4 justify-center pt-6 transform transition-all duration-700 delay-600 ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}
@@ -846,10 +961,11 @@ export default function InternshipForm() {
               </span>
             </button>
           </div>
-        </form>
+        </form >
 
         {/* Footer */}
-        <div className={`mt-16 text-center transform transition-all duration-700 delay-700 ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+        < div className={`mt-16 text-center transform transition-all duration-700 delay-700 ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`
+        }>
           <div className="flex items-center justify-center gap-4 mb-4">
             <div className="relative">
               <div className="absolute inset-0 bg-emerald-500 rounded-xl blur-lg opacity-30" />
@@ -875,40 +991,42 @@ export default function InternshipForm() {
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
             rtseducation.in
           </a>
-        </div>
-      </div>
+        </div >
+      </div >
 
       {/* Toast Notification */}
-      {submitStatus && (
-        <div
-          className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-8 sm:bottom-8 px-5 py-4 sm:px-8 sm:py-5 rounded-xl sm:rounded-2xl shadow-2xl z-50 flex items-center gap-3 sm:gap-4 backdrop-blur-xl border animate-slide-in ${submitStatus.type === 'success'
-            ? 'bg-emerald-500/90 border-emerald-400/50 shadow-emerald-500/30'
-            : 'bg-red-500/90 border-red-400/50 shadow-red-500/30'
-            }`}
-        >
-          {submitStatus.type === 'success' ? (
-            <div className="relative flex-shrink-0">
-              <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-30" />
-              <svg className="relative w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-          ) : (
-            <svg className="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          )}
-          <span className="font-semibold text-base sm:text-lg flex-1">{submitStatus.message}</span>
-          <button
-            onClick={() => setSubmitStatus(null)}
-            className="hover:bg-white/20 p-1.5 rounded-lg transition-colors flex-shrink-0"
+      {
+        submitStatus && (
+          <div
+            className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-8 sm:bottom-8 px-5 py-4 sm:px-8 sm:py-5 rounded-xl sm:rounded-2xl shadow-2xl z-50 flex items-center gap-3 sm:gap-4 backdrop-blur-xl border animate-slide-in ${submitStatus.type === 'success'
+              ? 'bg-emerald-500/90 border-emerald-400/50 shadow-emerald-500/30'
+              : 'bg-red-500/90 border-red-400/50 shadow-red-500/30'
+              }`}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
+            {submitStatus.type === 'success' ? (
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-30" />
+                <svg className="relative w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            ) : (
+              <svg className="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            <span className="font-semibold text-base sm:text-lg flex-1">{submitStatus.message}</span>
+            <button
+              onClick={() => setSubmitStatus(null)}
+              className="hover:bg-white/20 p-1.5 rounded-lg transition-colors flex-shrink-0"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )
+      }
 
       <style jsx>{`
         @keyframes float {
@@ -961,6 +1079,6 @@ export default function InternshipForm() {
           animation-delay: 2s;
         }
       `}</style>
-    </div>
+    </div >
   );
 }
