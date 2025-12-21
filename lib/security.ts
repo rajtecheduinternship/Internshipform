@@ -1,6 +1,6 @@
 // Security utilities for form protection
 
-import { GENDER_OPTIONS, INTERNSHIP_TOPICS, COLLEGES, HONOURS_SUBJECTS, SEMESTERS } from './types';
+import { GENDER_OPTIONS, INTERNSHIP_TOPICS, COURSES, COLLEGES, HONOURS_SUBJECTS, SEMESTERS } from './types';
 
 // ==================== INPUT SANITIZATION ====================
 
@@ -109,6 +109,7 @@ export function isValidOption(value: string, allowedOptions: readonly string[]):
 export function validateDropdowns(data: {
     gender?: string;
     internshipTopic?: string;
+    course?: string;
     collegeName?: string;
     honoursSubject?: string;
     currentSemester?: string;
@@ -118,6 +119,9 @@ export function validateDropdowns(data: {
     }
     if (data.internshipTopic && !isValidOption(data.internshipTopic, INTERNSHIP_TOPICS)) {
         return { valid: false, field: 'internshipTopic' };
+    }
+    if (data.course && !isValidOption(data.course, COURSES)) {
+        return { valid: false, field: 'course' };
     }
     if (data.collegeName && !isValidOption(data.collegeName, COLLEGES)) {
         return { valid: false, field: 'collegeName' };

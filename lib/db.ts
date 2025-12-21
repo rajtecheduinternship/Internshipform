@@ -35,6 +35,7 @@ export interface ApplicationRecord {
   date_of_birth: string;
   address: string;
   internship_topic: string;
+  course: string;
   college_name: string;
   honours_subject: string;
   current_semester: string;

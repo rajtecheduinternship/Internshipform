@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS internship_applications (
   date_of_birth DATE NOT NULL,
   address TEXT NOT NULL,
   internship_topic TEXT NOT NULL,
+  course TEXT NOT NULL,
   college_name TEXT NOT NULL,
   honours_subject TEXT NOT NULL,
   current_semester TEXT NOT NULL,

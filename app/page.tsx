@@ -7,6 +7,7 @@ import {
   InternshipFormData,
   GENDER_OPTIONS,
   INTERNSHIP_TOPICS,
+  COURSES,
   COLLEGES,
   HONOURS_SUBJECTS,
   SEMESTERS,
@@ -64,6 +65,7 @@ const initialFormData: InternshipFormData = {
   dateOfBirth: '',
   address: '',
   internshipTopic: '',
+  course: '',
   collegeName: '',
   honoursSubject: '',
   currentSemester: '',
@@ -78,6 +80,7 @@ const initialFormData: InternshipFormData = {
   signature: '',
   declarationAccepted: false,
   otherCollegeName: '',
+  otherCourse: '',
   otherHonoursSubject: '',
 };
 
@@ -584,6 +587,33 @@ export default function InternshipForm() {
                         value={formData.otherCollegeName}
                         onChange={handleInputChange}
                         placeholder="Enter College Name"
+                        className="w-full mt-3 px-5 py-4 bg-white/10 border-2 border-white/20 rounded-xl focus:border-blue-400 focus:bg-white/15 transition-all duration-300 text-white placeholder-white/40 backdrop-blur-sm focus:shadow-lg focus:shadow-blue-500/20 focus:-translate-y-0.5"
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-white/80 mb-3">
+                      Course <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      name="course"
+                      value={formData.course}
+                      onChange={handleInputChange}
+                      className="w-full px-5 py-4 bg-white/10 border-2 border-white/20 rounded-xl focus:border-blue-400 focus:bg-white/15 transition-all duration-300 text-white backdrop-blur-sm focus:shadow-lg focus:shadow-blue-500/20 focus:-translate-y-0.5 [&>option]:bg-slate-800 [&>option]:text-white"
+                    >
+                      <option value="">Select Course</option>
+                      {COURSES.map(course => (
+                        <option key={course} value={course}>{course}</option>
+                      ))}
+                    </select>
+                    {formData.course === 'Other' && (
+                      <input
+                        type="text"
+                        name="otherCourse"
+                        value={formData.otherCourse}
+                        onChange={handleInputChange}
+                        placeholder="Enter Course Name"
                         className="w-full mt-3 px-5 py-4 bg-white/10 border-2 border-white/20 rounded-xl focus:border-blue-400 focus:bg-white/15 transition-all duration-300 text-white placeholder-white/40 backdrop-blur-sm focus:shadow-lg focus:shadow-blue-500/20 focus:-translate-y-0.5"
                       />
                     )}

@@ -9,6 +9,7 @@ export interface InternshipFormData {
 
   // Academic Information
   internshipTopic: string;
+  course: string;
   collegeName: string;
   honoursSubject: string;
   currentSemester: string;
@@ -17,6 +18,7 @@ export interface InternshipFormData {
   universityRollNumber: string;
   universityRegistrationNumber: string;
   otherCollegeName?: string;
+  otherCourse?: string;
   otherHonoursSubject?: string;
 
   // Contact Information
@@ -50,6 +52,13 @@ export const INTERNSHIP_TOPICS = [
   'Basic IT and Accounting',
   'Basic IT and Tally Prime with GST',
   'Basic IT with Office Management',
+];
+
+export const COURSES = [
+  'B.A.',
+  'B.Sc.',
+  'B.Com.',
+  'Other',
 ];
 
 export const COLLEGES = [

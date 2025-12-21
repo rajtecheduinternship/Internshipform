@@ -135,6 +135,7 @@ function validateFormData(data: InternshipFormData): { valid: boolean; error?: s
     { field: 'dateOfBirth', label: 'Date of Birth', maxLength: 20 },
     { field: 'address', label: 'Address', maxLength: 500 },
     { field: 'internshipTopic', label: 'Internship Topic', maxLength: 100 },
+    { field: 'course', label: 'Course', maxLength: 50 },
     { field: 'collegeName', label: 'College Name', maxLength: 200 },
     { field: 'honoursSubject', label: 'Honours Subject', maxLength: 100 },
     { field: 'currentSemester', label: 'Current Semester', maxLength: 50 },
@@ -144,6 +145,10 @@ function validateFormData(data: InternshipFormData): { valid: boolean; error?: s
     { field: 'contactNumber', label: 'Contact Number', maxLength: 15 },
     { field: 'emailAddress', label: 'Email Address', maxLength: 254 },
   ];
+
+  if (data.course === 'Other') {
+    requiredFields.push({ field: 'otherCourse', label: 'Course (Other)', maxLength: 50 });
+  }
 
   if (data.collegeName === 'Other') {
     requiredFields.push({ field: 'otherCollegeName', label: 'College Name (Other)', maxLength: 200 });
@@ -168,6 +173,7 @@ function validateFormData(data: InternshipFormData): { valid: boolean; error?: s
   const dropdownValidation = validateDropdowns({
     gender: data.gender,
     internshipTopic: data.internshipTopic,
+    course: data.course,
     collegeName: data.collegeName,
     honoursSubject: data.honoursSubject,
     currentSemester: data.currentSemester,
@@ -380,6 +386,7 @@ export async function POST(request: NextRequest) {
       date_of_birth: data.dateOfBirth,
       address: cleanText(data.address, 500),
       internship_topic: data.internshipTopic,
+      course: data.course === 'Other' && data.otherCourse ? cleanText(data.otherCourse, 50) : data.course,
       college_name: data.collegeName === 'Other' && data.otherCollegeName ? cleanText(data.otherCollegeName, 200) : data.collegeName,
       honours_subject: data.honoursSubject === 'Other' && data.otherHonoursSubject ? cleanText(data.otherHonoursSubject, 100) : data.honoursSubject,
       current_semester: data.currentSemester,
