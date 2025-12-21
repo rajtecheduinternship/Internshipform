@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   title: "Internship Registration - Rajtech Technological Systems",
   description: "Register for Patliputra University Internship Program at Rajtech Technological Systems",
   keywords: ["internship", "Rajtech", "Patliputra University", "computer training"],
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

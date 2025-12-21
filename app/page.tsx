@@ -14,44 +14,44 @@ import {
 // Icons as SVG components
 const PersonIcon = () => (
   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
   </svg>
 );
 
 const AcademicIcon = () => (
   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
+    <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z" />
   </svg>
 );
 
 const PhoneIcon = () => (
   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
   </svg>
 );
 
 const UploadIcon = () => (
   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+    <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
   </svg>
 );
 
 const DeclarationIcon = () => (
   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
   </svg>
 );
 
 const CameraIcon = () => (
   <svg className="w-12 h-12 text-gray-300 group-hover:text-purple-400 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 );
 
 const SignatureIcon = () => (
   <svg className="w-12 h-12 text-gray-300 group-hover:text-purple-400 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
   </svg>
 );
 
@@ -227,7 +227,7 @@ export default function InternshipForm() {
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900">
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 opacity-30" style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2310b981' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"}} />
+        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2310b981' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
         {mounted && (
           <>
             <FloatingParticle delay={0} duration={20} size={300} left="10%" top="20%" />
@@ -243,9 +243,9 @@ export default function InternshipForm() {
       </div>
 
       {/* Top Banner */}
-      <div className="relative bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 text-white py-3 px-4 text-center shadow-lg backdrop-blur-sm bg-opacity-90">
+      <div className="relative bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 text-white py-2 sm:py-3 px-3 sm:px-4 text-center shadow-lg backdrop-blur-sm bg-opacity-90">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-        <span className="relative font-semibold tracking-wide">Patliputra University Internship Program 2024-25</span>
+        <span className="relative font-semibold tracking-wide text-xs sm:text-base whitespace-nowrap">Patliputra University Internship Program 2024-25</span>
       </div>
 
       <div className="relative max-w-4xl mx-auto py-8 px-4">
@@ -258,28 +258,28 @@ export default function InternshipForm() {
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
 
             {/* Company Header */}
-            <div className="relative bg-gradient-to-r from-slate-900/80 via-slate-800/80 to-slate-900/80 p-8 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-slate-900/80 via-slate-800/80 to-slate-900/80 p-4 sm:p-8 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-3 sm:gap-5">
                   {/* 3D Logo */}
-                  <div className="relative transform hover:scale-110 transition-transform duration-300">
-                    <div className="absolute inset-0 bg-emerald-500 rounded-2xl blur-xl opacity-50 group-hover:opacity-70 transition-opacity" />
-                    <div className="relative bg-white rounded-2xl p-3 shadow-2xl transform hover:rotate-3 transition-transform duration-300">
+                  <div className="relative transform hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                    <div className="absolute inset-0 bg-emerald-500 rounded-xl sm:rounded-2xl blur-xl opacity-50 group-hover:opacity-70 transition-opacity" />
+                    <div className="relative bg-white rounded-xl sm:rounded-2xl p-2 sm:p-3 shadow-2xl transform hover:rotate-3 transition-transform duration-300">
                       <Image
-                        src="/logo.svg"
+                        src="/logo.png"
                         alt="RTS Logo"
                         width={70}
                         height={60}
-                        className="h-14 w-auto"
+                        className="h-10 sm:h-14 w-auto"
                       />
                     </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl md:text-4xl font-bold text-white drop-shadow-lg">
+                  <div className="min-w-0">
+                    <h1 className="text-sm sm:text-2xl md:text-4xl font-bold text-white drop-shadow-lg whitespace-nowrap">
                       Rajtech Technological Systems
                     </h1>
-                    <p className="text-emerald-300 text-sm md:text-lg font-medium mt-2 flex items-center gap-2">
-                      <span className="inline-block w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                    <p className="text-emerald-300 text-[10px] sm:text-sm md:text-lg font-medium mt-1 sm:mt-2 flex items-center gap-1 sm:gap-2 whitespace-nowrap">
+                      <span className="inline-block w-1 h-1 sm:w-2 sm:h-2 bg-emerald-400 rounded-full animate-pulse" />
                       Excellence in Computer Education
                     </p>
                   </div>
@@ -291,7 +291,7 @@ export default function InternshipForm() {
                   className="hidden md:flex items-center gap-2 bg-white/10 hover:bg-white/20 px-5 py-3 rounded-xl transition-all duration-300 text-sm border border-white/20 hover:border-white/40 hover:scale-105 hover:shadow-lg"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                   Visit Website
                 </a>
@@ -304,7 +304,7 @@ export default function InternshipForm() {
               <div className="relative flex items-center gap-4">
                 <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm shadow-inner">
                   <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
                   </svg>
                 </div>
                 <div>
@@ -323,7 +323,7 @@ export default function InternshipForm() {
                 className="text-emerald-300 hover:text-emerald-200 flex items-center gap-2 text-sm font-medium transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
                 Visit Official Website: rtseducation.in
               </a>
@@ -816,15 +816,15 @@ export default function InternshipForm() {
                 {isSubmitting ? (
                   <>
                     <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
                     Submitting...
                   </>
                 ) : (
                   <>
                     <svg className="w-6 h-6 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                     </svg>
                     Submit Application
                   </>
@@ -840,7 +840,7 @@ export default function InternshipForm() {
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
               <span className="relative flex items-center justify-center gap-3">
                 <svg className="w-6 h-6 transform group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 Reset Form
               </span>
@@ -855,7 +855,7 @@ export default function InternshipForm() {
               <div className="absolute inset-0 bg-emerald-500 rounded-xl blur-lg opacity-30" />
               <div className="relative bg-white rounded-xl p-2">
                 <Image
-                  src="/logo.svg"
+                  src="/logo.png"
                   alt="RTS Logo"
                   width={45}
                   height={40}
@@ -881,31 +881,30 @@ export default function InternshipForm() {
       {/* Toast Notification */}
       {submitStatus && (
         <div
-          className={`fixed bottom-8 right-8 px-8 py-5 rounded-2xl shadow-2xl z-50 flex items-center gap-4 backdrop-blur-xl border animate-slide-in ${
-            submitStatus.type === 'success'
-              ? 'bg-emerald-500/90 border-emerald-400/50 shadow-emerald-500/30'
-              : 'bg-red-500/90 border-red-400/50 shadow-red-500/30'
-          }`}
+          className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-8 sm:bottom-8 px-5 py-4 sm:px-8 sm:py-5 rounded-xl sm:rounded-2xl shadow-2xl z-50 flex items-center gap-3 sm:gap-4 backdrop-blur-xl border animate-slide-in ${submitStatus.type === 'success'
+            ? 'bg-emerald-500/90 border-emerald-400/50 shadow-emerald-500/30'
+            : 'bg-red-500/90 border-red-400/50 shadow-red-500/30'
+            }`}
         >
           {submitStatus.type === 'success' ? (
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-30" />
-              <svg className="relative w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+              <svg className="relative w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
           ) : (
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+            <svg className="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           )}
-          <span className="font-semibold text-lg">{submitStatus.message}</span>
+          <span className="font-semibold text-base sm:text-lg flex-1">{submitStatus.message}</span>
           <button
             onClick={() => setSubmitStatus(null)}
-            className="ml-2 hover:bg-white/20 p-1 rounded-lg transition-colors"
+            className="hover:bg-white/20 p-1.5 rounded-lg transition-colors flex-shrink-0"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>

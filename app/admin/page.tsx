@@ -134,7 +134,7 @@ export default function AdminPage() {
           <div className="text-center mb-6">
             <div className="bg-[#1e3a5f] text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-gray-800">Admin Access</h1>
@@ -175,48 +175,55 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
-      <div className="bg-[#1e3a5f] text-white py-4 px-6">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-            <p className="text-white/70 text-sm">Rajtech Technological Systems - Internship Applications</p>
-          </div>
-          <div className="flex gap-4">
-            <button
-              onClick={fetchSubmissions}
-              className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-              </svg>
-              Refresh
-            </button>
-            <button
-              onClick={exportToCSV}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-              Export CSV
-            </button>
+      <div className="bg-[#1e3a5f] text-white py-3 px-4 sm:py-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Top row - Title and Logout */}
+          <div className="flex justify-between items-center">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-bold truncate">Admin Dashboard</h1>
+              <p className="text-white/70 text-xs sm:text-sm truncate">Rajtech - Internship Applications</p>
+            </div>
             <button
               onClick={() => {
                 setIsAuthenticated(false);
                 setPassword('');
                 setSubmissions([]);
               }}
-              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
+              className="bg-red-600 hover:bg-red-700 px-3 py-2 sm:px-4 rounded-lg text-sm flex items-center gap-1 flex-shrink-0 ml-2"
             >
-              Logout
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
+          {/* Bottom row - Action buttons */}
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={fetchSubmissions}
+              className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Refresh</span>
+            </button>
+            <button
+              onClick={exportToCSV}
+              className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Export</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="text-3xl font-bold text-[#1e3a5f]">{submissions.length}</div>
             <div className="text-gray-500">Total Applications</div>
@@ -252,7 +259,7 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* Table */}
+        {/* Submissions List */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {loading ? (
             <div className="p-8 text-center">
@@ -264,85 +271,121 @@ export default function AdminPage() {
               {searchTerm ? 'No matching submissions found' : 'No submissions yet'}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">#</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Student</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Contact</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">College</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Topic</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Submitted</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredSubmissions.map((submission, index) => (
-                    <tr key={submission.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-500">{index + 1}</td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-gray-800">{submission.student_name}</div>
-                        <div className="text-sm text-gray-500">{submission.email_address}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm text-gray-800">{submission.contact_number}</div>
-                        {submission.whatsapp_number && (
-                          <div className="text-xs text-gray-500">WA: {submission.whatsapp_number}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-800">{submission.college_name}</td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                          {submission.internship_topic}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+            <>
+              {/* Mobile Card View */}
+              <div className="sm:hidden divide-y divide-gray-200">
+                {filteredSubmissions.map((submission, index) => (
+                  <div
+                    key={submission.id}
+                    onClick={() => setSelectedSubmission(submission)}
+                    className="p-4 hover:bg-gray-50 cursor-pointer active:bg-gray-100"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-800 truncate">#{index + 1} {submission.student_name}</div>
+                        <div className="text-sm text-gray-500 truncate">{submission.email_address}</div>
+                      </div>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full flex-shrink-0 ml-2">
+                        {submission.internship_topic}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">{submission.contact_number}</span>
+                      <span className="text-gray-400 text-xs">
                         {new Date(submission.created_at).toLocaleDateString('en-IN', {
                           day: '2-digit',
                           month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
                         })}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => setSelectedSubmission(submission)}
-                          className="text-[#1e3a5f] hover:underline text-sm font-medium"
-                        >
-                          View Details
-                        </button>
-                      </td>
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 truncate">{submission.college_name}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">#</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Student</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Contact</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">College</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Topic</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Submitted</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredSubmissions.map((submission, index) => (
+                      <tr key={submission.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-500">{index + 1}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-800">{submission.student_name}</div>
+                          <div className="text-sm text-gray-500">{submission.email_address}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-800">{submission.contact_number}</div>
+                          {submission.whatsapp_number && (
+                            <div className="text-xs text-gray-500">WA: {submission.whatsapp_number}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-800">{submission.college_name}</td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                            {submission.internship_topic}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {new Date(submission.created_at).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => setSelectedSubmission(submission)}
+                            className="text-[#1e3a5f] hover:underline text-sm font-medium"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
 
       {/* Detail Modal */}
       {selectedSubmission && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-[#1e3a5f] text-white p-4 flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50">
+          <div className="bg-white sm:rounded-xl rounded-t-2xl w-full sm:max-w-2xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[#1e3a5f] text-white p-4 flex justify-between items-center rounded-t-2xl sm:rounded-t-xl">
+              {/* Mobile drag indicator */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/30 rounded-full sm:hidden"></div>
               <h2 className="text-xl font-bold">Application Details</h2>
               <button
                 onClick={() => setSelectedSubmission(null)}
                 className="text-white/70 hover:text-white"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
               {/* Photo & Signature */}
               {(selectedSubmission.photo || selectedSubmission.signature) && (
-                <div className="flex gap-4 justify-center">
+                <div className="flex flex-wrap gap-4 justify-center">
                   {selectedSubmission.photo && (
                     <div className="text-center">
                       <Image
@@ -376,7 +419,7 @@ export default function AdminPage() {
                   <span className="w-2 h-2 bg-[#1e3a5f] rounded-full"></span>
                   Personal Information
                 </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
                   <div><span className="text-gray-500">Name:</span> <span className="font-medium">{selectedSubmission.student_name}</span></div>
                   <div><span className="text-gray-500">Gender:</span> <span className="font-medium">{selectedSubmission.gender}</span></div>
                   <div><span className="text-gray-500">Father:</span> <span className="font-medium">{selectedSubmission.father_name}</span></div>
@@ -392,7 +435,7 @@ export default function AdminPage() {
                   <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                   Academic Information
                 </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
                   <div><span className="text-gray-500">Topic:</span> <span className="font-medium">{selectedSubmission.internship_topic}</span></div>
                   <div><span className="text-gray-500">College:</span> <span className="font-medium">{selectedSubmission.college_name}</span></div>
                   <div><span className="text-gray-500">Honours:</span> <span className="font-medium">{selectedSubmission.honours_subject}</span></div>
@@ -410,7 +453,7 @@ export default function AdminPage() {
                   <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
                   Contact Information
                 </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
                   <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{selectedSubmission.contact_number}</span></div>
                   <div><span className="text-gray-500">WhatsApp:</span> <span className="font-medium">{selectedSubmission.whatsapp_number || 'Same as phone'}</span></div>
                   <div className="col-span-2"><span className="text-gray-500">Email:</span> <span className="font-medium">{selectedSubmission.email_address}</span></div>
