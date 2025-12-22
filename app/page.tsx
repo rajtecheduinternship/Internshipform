@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import { jsPDF } from 'jspdf';
 import Script from 'next/script';
 import {
   InternshipFormData,
@@ -105,6 +106,9 @@ export default function InternshipForm() {
   const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+  const [showSuccessScreen, setShowSuccessScreen] = useState(false);
+  const [submittedData, setSubmittedData] = useState<InternshipFormData | null>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -242,8 +246,10 @@ export default function InternshipForm() {
       const result = await response.json();
 
       if (response.ok) {
+        // Capture the submitted data before resetting
+        setSubmittedData({ ...formData });
+        setShowSuccessScreen(true);
         setSubmitStatus({ type: 'success', message: 'Application submitted successfully!' });
-        handleReset();
       } else {
         setSubmitStatus({ type: 'error', message: result.error || 'Failed to submit application' });
         // Reset Turnstile to get a new token for retry
@@ -288,6 +294,316 @@ export default function InternshipForm() {
       console.error('Failed to fetch new form token:', error);
     }
   };
+
+  const handleNewApplication = () => {
+    setShowSuccessScreen(false);
+    setSubmittedData(null);
+    setSubmitStatus(null);
+    handleReset();
+  };
+
+  const generatePDF = async () => {
+    if (!submittedData) return;
+
+    setIsGeneratingPDF(true);
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = 20;
+
+      // Header with company name
+      pdf.setFillColor(30, 58, 95);
+      pdf.rect(0, 0, pageWidth, 40, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Rajtech Technological Systems', pageWidth / 2, 18, { align: 'center' });
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Internship Application Form 2025-26', pageWidth / 2, 28, { align: 'center' });
+      pdf.text('Patliputra University', pageWidth / 2, 35, { align: 'center' });
+
+      yPos = 55;
+      pdf.setTextColor(0, 0, 0);
+
+      // Helper function to add section header
+      const addSectionHeader = (title: string) => {
+        pdf.setFillColor(240, 240, 240);
+        pdf.rect(margin, yPos - 5, contentWidth, 10, 'F');
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(30, 58, 95);
+        pdf.text(title, margin + 3, yPos + 2);
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFont('helvetica', 'normal');
+        yPos += 12;
+      };
+
+      // Helper function to add field
+      const addField = (label: string, value: string, isFullWidth = false) => {
+        if (yPos > 270) {
+          pdf.addPage();
+          yPos = 20;
+        }
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(label + ':', margin, yPos);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(0, 0, 0);
+        const maxWidth = isFullWidth ? contentWidth - 5 : contentWidth / 2 - 5;
+        const splitValue = pdf.splitTextToSize(value || 'N/A', maxWidth);
+        pdf.text(splitValue, margin + 50, yPos);
+        yPos += Math.max(splitValue.length * 5, 7);
+      };
+
+      // Personal Information
+      addSectionHeader('Personal Information');
+      addField('Student Name', submittedData.studentName);
+      addField("Father's Name", submittedData.fatherName);
+      addField("Mother's Name", submittedData.motherName);
+      addField('Gender', submittedData.gender);
+      addField('Date of Birth', submittedData.dateOfBirth);
+      addField('Address', submittedData.address, true);
+      yPos += 5;
+
+      // Academic Information
+      addSectionHeader('Academic Information');
+      addField('Internship Topic', submittedData.internshipTopic);
+      const collegeName = submittedData.collegeName === 'Other' ? submittedData.otherCollegeName || '' : submittedData.collegeName;
+      addField('College Name', collegeName);
+      const course = submittedData.course === 'Other' ? submittedData.otherCourse || '' : submittedData.course;
+      addField('Course', course);
+      const honours = submittedData.honoursSubject === 'Other' ? submittedData.otherHonoursSubject || '' : submittedData.honoursSubject;
+      addField('Honours Subject', honours);
+      addField('Current Semester', submittedData.currentSemester);
+      addField('Class Roll No', submittedData.classRollNo);
+      addField('University', submittedData.universityName);
+      addField('Uni Roll Number', submittedData.universityRollNumber);
+      addField('Uni Reg Number', submittedData.universityRegistrationNumber);
+      yPos += 5;
+
+      // Contact Information
+      addSectionHeader('Contact Information');
+      addField('Contact Number', submittedData.contactNumber);
+      addField('WhatsApp', submittedData.whatsappNumber || 'Same as contact');
+      addField('Email Address', submittedData.emailAddress);
+      yPos += 10;
+
+      // Declaration
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'italic');
+      pdf.setTextColor(100, 100, 100);
+      const declaration = 'I hereby declare that all the information provided above is true and correct to the best of my knowledge.';
+      const declarationLines = pdf.splitTextToSize(declaration, contentWidth);
+      pdf.text(declarationLines, margin, yPos);
+      yPos += declarationLines.length * 5 + 10;
+
+      // Photo and Signature at bottom - photo on left, signature on right
+      if (submittedData.photo || submittedData.signature) {
+        // Check if we need a new page for images
+        if (yPos > 230) {
+          pdf.addPage();
+          yPos = 20;
+        }
+
+        const imageY = yPos;
+
+        if (submittedData.photo) {
+          try {
+            pdf.addImage(submittedData.photo, 'JPEG', margin, imageY, 30, 38);
+            pdf.setDrawColor(200, 200, 200);
+            pdf.rect(margin, imageY, 30, 38);
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(100, 100, 100);
+            pdf.text('Passport Photo', margin, imageY + 43);
+          } catch (e) {
+            console.log('Could not add photo to PDF', e);
+          }
+        }
+
+        if (submittedData.signature) {
+          try {
+            const sigX = pageWidth - margin - 40;
+            pdf.addImage(submittedData.signature, 'PNG', sigX, imageY + 20, 40, 15);
+            pdf.setDrawColor(200, 200, 200);
+            pdf.line(sigX, imageY + 35, sigX + 40, imageY + 35);
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(100, 100, 100);
+            pdf.text('Signature of Applicant', sigX, imageY + 43);
+          } catch (e) {
+            console.log('Could not add signature to PDF', e);
+          }
+        }
+
+        yPos = imageY + 50;
+      }
+
+      // Submission timestamp
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Submitted on: ${new Date().toLocaleString('en-IN')}`, margin, yPos);
+
+      // Footer
+      pdf.setFillColor(30, 58, 95);
+      pdf.rect(0, 285, pageWidth, 12, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(8);
+      pdf.text('Contact: +91 9931005560, +91 89869962080 | Email: rtseducationintern@gmail.com | Website: rtseducation.in', pageWidth / 2, 292, { align: 'center' });
+
+      // Save the PDF
+      const safeName = submittedData.studentName.replace(/[^a-zA-Z0-9]/g, '_');
+      pdf.save(`Internship_Application_${safeName}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  // Show success screen if submission was successful
+  if (showSuccessScreen && submittedData) {
+    return (
+      <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900">
+        {/* Animated Background */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2310b981' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
+          <div className="absolute top-0 -left-40 w-80 h-80 bg-emerald-500/30 rounded-full blur-[100px] animate-pulse" />
+          <div className="absolute bottom-0 -right-40 w-80 h-80 bg-teal-500/30 rounded-full blur-[100px] animate-pulse" />
+        </div>
+
+        <div className="relative max-w-3xl mx-auto py-8 px-4">
+          {/* Success Header */}
+          <div className="text-center mb-8 animate-fade-in">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-500/20 rounded-full mb-4 backdrop-blur-sm border border-emerald-400/30">
+              <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Application Submitted!</h1>
+            <p className="text-emerald-300">Your internship application has been received successfully.</p>
+          </div>
+
+          {/* Submitted Data Card */}
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 mb-6">
+            {/* Card Header */}
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 px-6 py-4">
+              <h2 className="text-xl font-bold text-white">Application Summary</h2>
+              <p className="text-emerald-100 text-sm">Review your submitted information below</p>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Photo & Signature */}
+              {(submittedData.photo || submittedData.signature) && (
+                <div className="flex flex-wrap gap-6 justify-center pb-6 border-b border-white/10">
+                  {submittedData.photo && (
+                    <div className="text-center">
+                      <Image src={submittedData.photo} alt="Photo" width={100} height={120} className="rounded-lg border-2 border-white/20 object-cover" />
+                      <p className="text-xs text-white/50 mt-2">Your Photo</p>
+                    </div>
+                  )}
+                  {submittedData.signature && (
+                    <div className="text-center">
+                      <Image src={submittedData.signature} alt="Signature" width={120} height={50} className="rounded-lg border-2 border-white/20 bg-white object-contain" />
+                      <p className="text-xs text-white/50 mt-2">Your Signature</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Personal Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                  Personal Information
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-white/50">Name:</span> <span className="text-white font-medium">{submittedData.studentName}</span></div>
+                  <div><span className="text-white/50">Gender:</span> <span className="text-white font-medium">{submittedData.gender}</span></div>
+                  <div><span className="text-white/50">Father:</span> <span className="text-white font-medium">{submittedData.fatherName}</span></div>
+                  <div><span className="text-white/50">Mother:</span> <span className="text-white font-medium">{submittedData.motherName}</span></div>
+                  <div><span className="text-white/50">DOB:</span> <span className="text-white font-medium">{submittedData.dateOfBirth}</span></div>
+                  <div className="sm:col-span-2"><span className="text-white/50">Address:</span> <span className="text-white font-medium">{submittedData.address}</span></div>
+                </div>
+              </div>
+
+              {/* Academic Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-blue-400 mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                  Academic Information
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-white/50">Internship Topic:</span> <span className="text-white font-medium">{submittedData.internshipTopic}</span></div>
+                  <div><span className="text-white/50">College:</span> <span className="text-white font-medium">{submittedData.collegeName === 'Other' ? submittedData.otherCollegeName : submittedData.collegeName}</span></div>
+                  <div><span className="text-white/50">Course:</span> <span className="text-white font-medium">{submittedData.course === 'Other' ? submittedData.otherCourse : submittedData.course}</span></div>
+                  <div><span className="text-white/50">Honours:</span> <span className="text-white font-medium">{submittedData.honoursSubject === 'Other' ? submittedData.otherHonoursSubject : submittedData.honoursSubject}</span></div>
+                  <div><span className="text-white/50">Semester:</span> <span className="text-white font-medium">{submittedData.currentSemester}</span></div>
+                  <div><span className="text-white/50">Class Roll:</span> <span className="text-white font-medium">{submittedData.classRollNo}</span></div>
+                  <div><span className="text-white/50">University:</span> <span className="text-white font-medium">{submittedData.universityName}</span></div>
+                  <div><span className="text-white/50">Uni Roll No:</span> <span className="text-white font-medium">{submittedData.universityRollNumber}</span></div>
+                  <div><span className="text-white/50">Uni Reg No:</span> <span className="text-white font-medium">{submittedData.universityRegistrationNumber}</span></div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-orange-400 mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-orange-400 rounded-full"></span>
+                  Contact Information
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-white/50">Phone:</span> <span className="text-white font-medium">{submittedData.contactNumber}</span></div>
+                  <div><span className="text-white/50">WhatsApp:</span> <span className="text-white font-medium">{submittedData.whatsappNumber || 'Same as phone'}</span></div>
+                  <div className="sm:col-span-2"><span className="text-white/50">Email:</span> <span className="text-white font-medium">{submittedData.emailAddress}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className="flex items-center justify-center gap-3 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-purple-500/30 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {isGeneratingPDF ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              )}
+              {isGeneratingPDF ? 'Generating PDF...' : 'Download as PDF'}
+            </button>
+            <button
+              onClick={handleNewApplication}
+              className="flex items-center justify-center gap-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 backdrop-blur-sm"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Submit Another Application
+            </button>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-12 text-center">
+            <p className="text-white/40 text-sm">© 2024 Rajtech Technological Systems. All rights reserved.</p>
+            <a href="https://rtseducation.in/" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-sm font-medium mt-1 inline-block">
+              rtseducation.in
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900">
