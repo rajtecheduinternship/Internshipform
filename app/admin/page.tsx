@@ -115,12 +115,37 @@ export default function AdminPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Helper function to download a single image
-  const downloadImage = (base64Data: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = base64Data;
-    link.download = filename;
-    link.click();
+  // Helper function to check if a string is a URL
+  const isUrl = (str: string | null | undefined): boolean => {
+    if (!str) return false;
+    return str.startsWith('http://') || str.startsWith('https://');
+  };
+
+  // Helper function to download a single image (handles both URL and base64)
+  const downloadImage = async (imageData: string, filename: string) => {
+    if (isUrl(imageData)) {
+      // For URLs, fetch the image and download
+      try {
+        const response = await fetch(imageData);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error downloading image:', error);
+        // Fallback: open in new tab
+        window.open(imageData, '_blank');
+      }
+    } else {
+      // For base64, use direct download
+      const link = document.createElement('a');
+      link.href = imageData;
+      link.download = filename;
+      link.click();
+    }
   };
 
   // Download all images as ZIP
@@ -139,21 +164,46 @@ export default function AdminPage() {
         const rollNo = submission.university_roll_number.replace(/[^a-zA-Z0-9]/g, '_');
 
         if (submission.photo && photosFolder) {
-          // Extract base64 data and extension
-          const photoMatch = submission.photo.match(/^data:image\/(\w+);base64,(.+)$/);
-          if (photoMatch) {
-            const extension = photoMatch[1];
-            const base64Data = photoMatch[2];
-            photosFolder.file(`${safeName}_${rollNo}.${extension}`, base64Data, { base64: true });
+          if (isUrl(submission.photo)) {
+            // Fetch image from URL and add to ZIP
+            try {
+              const response = await fetch(submission.photo);
+              const blob = await response.blob();
+              const extension = blob.type.split('/')[1] || 'jpg';
+              photosFolder.file(`${safeName}_${rollNo}.${extension}`, blob);
+            } catch (error) {
+              console.error(`Failed to fetch photo for ${safeName}:`, error);
+            }
+          } else {
+            // Handle legacy base64 data
+            const photoMatch = submission.photo.match(/^data:image\/(\w+);base64,(.+)$/);
+            if (photoMatch) {
+              const extension = photoMatch[1];
+              const base64Data = photoMatch[2];
+              photosFolder.file(`${safeName}_${rollNo}.${extension}`, base64Data, { base64: true });
+            }
           }
         }
 
         if (submission.signature && signaturesFolder) {
-          const sigMatch = submission.signature.match(/^data:image\/(\w+);base64,(.+)$/);
-          if (sigMatch) {
-            const extension = sigMatch[1];
-            const base64Data = sigMatch[2];
-            signaturesFolder.file(`${safeName}_${rollNo}_signature.${extension}`, base64Data, { base64: true });
+          if (isUrl(submission.signature)) {
+            // Fetch signature from URL and add to ZIP
+            try {
+              const response = await fetch(submission.signature);
+              const blob = await response.blob();
+              const extension = blob.type.split('/')[1] || 'png';
+              signaturesFolder.file(`${safeName}_${rollNo}_signature.${extension}`, blob);
+            } catch (error) {
+              console.error(`Failed to fetch signature for ${safeName}:`, error);
+            }
+          } else {
+            // Handle legacy base64 data
+            const sigMatch = submission.signature.match(/^data:image\/(\w+);base64,(.+)$/);
+            if (sigMatch) {
+              const extension = sigMatch[1];
+              const base64Data = sigMatch[2];
+              signaturesFolder.file(`${safeName}_${rollNo}_signature.${extension}`, base64Data, { base64: true });
+            }
           }
         }
       }
@@ -476,9 +526,17 @@ export default function AdminPage() {
                         <p className="text-xs text-gray-500 mt-1">Photo</p>
                         <button
                           onClick={() => {
-                            const ext = selectedSubmission.photo?.match(/^data:image\/(\w+);/)?.[1] || 'jpg';
+                            const photo = selectedSubmission.photo!;
                             const safeName = selectedSubmission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
-                            downloadImage(selectedSubmission.photo!, `${safeName}_photo.${ext}`);
+                            // Determine extension from URL or base64
+                            let ext = 'jpg';
+                            if (isUrl(photo)) {
+                              const urlParts = photo.split('.');
+                              ext = urlParts[urlParts.length - 1].split('?')[0] || 'jpg';
+                            } else {
+                              ext = photo.match(/^data:image\/(\w+);/)?.[1] || 'jpg';
+                            }
+                            downloadImage(photo, `${safeName}_photo.${ext}`);
                           }}
                           className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1 mx-auto"
                         >
@@ -501,9 +559,17 @@ export default function AdminPage() {
                         <p className="text-xs text-gray-500 mt-1">Signature</p>
                         <button
                           onClick={() => {
-                            const ext = selectedSubmission.signature?.match(/^data:image\/(\w+);/)?.[1] || 'png';
+                            const sig = selectedSubmission.signature!;
                             const safeName = selectedSubmission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
-                            downloadImage(selectedSubmission.signature!, `${safeName}_signature.${ext}`);
+                            // Determine extension from URL or base64
+                            let ext = 'png';
+                            if (isUrl(sig)) {
+                              const urlParts = sig.split('.');
+                              ext = urlParts[urlParts.length - 1].split('?')[0] || 'png';
+                            } else {
+                              ext = sig.match(/^data:image\/(\w+);/)?.[1] || 'png';
+                            }
+                            downloadImage(sig, `${safeName}_signature.${ext}`);
                           }}
                           className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1 mx-auto"
                         >

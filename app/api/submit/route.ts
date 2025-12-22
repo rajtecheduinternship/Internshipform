@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { InternshipFormData } from '@/lib/types';
+import { uploadImagesToStorage } from '@/lib/storage';
 import {
   cleanText,
   containsSpam,
@@ -377,6 +378,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Upload images to Supabase Storage (if present)
+    // This stores images in the 'internship-files' bucket and returns public URLs
+    let photoUrl: string | undefined;
+    let signatureUrl: string | undefined;
+
+    if (data.photo || data.signature) {
+      const { photoUrl: pUrl, signatureUrl: sUrl } = await uploadImagesToStorage(
+        data.photo || undefined,
+        data.signature || undefined,
+        data.universityRollNumber
+      );
+      photoUrl = pUrl;
+      signatureUrl = sUrl;
+    }
+
     // Sanitize text inputs before storing
     const { error: insertError } = await db.insertApplication({
       student_name: cleanText(data.studentName, 100),
@@ -397,8 +413,8 @@ export async function POST(request: NextRequest) {
       contact_number: data.contactNumber,
       whatsapp_number: data.whatsappNumber || undefined,
       email_address: data.emailAddress.toLowerCase().trim(),
-      photo: data.photo || undefined,
-      signature: data.signature || undefined,
+      photo: photoUrl || undefined, // Store URL instead of base64
+      signature: signatureUrl || undefined, // Store URL instead of base64
       ip_address: clientIP,
       created_at: new Date().toISOString(),
     });
