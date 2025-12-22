@@ -385,6 +385,7 @@ export default function AdminPage() {
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">#</th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Student</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Father&apos;s Name</th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Contact</th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">College</th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Topic</th>
@@ -400,6 +401,7 @@ export default function AdminPage() {
                           <div className="font-medium text-gray-800">{submission.student_name}</div>
                           <div className="text-sm text-gray-500">{submission.email_address}</div>
                         </td>
+                        <td className="px-4 py-3 text-sm text-gray-800">{submission.father_name}</td>
                         <td className="px-4 py-3">
                           <div className="text-sm text-gray-800">{submission.contact_number}</div>
                           {submission.whatsapp_number && (
@@ -440,134 +442,136 @@ export default function AdminPage() {
       </div>
 
       {/* Detail Modal */}
-      {selectedSubmission && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50">
-          <div className="bg-white sm:rounded-xl rounded-t-2xl w-full sm:max-w-2xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto">
-            <div className="sticky top-0 bg-[#1e3a5f] text-white p-4 flex justify-between items-center rounded-t-2xl sm:rounded-t-xl">
-              {/* Mobile drag indicator */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/30 rounded-full sm:hidden"></div>
-              <h2 className="text-xl font-bold">Application Details</h2>
-              <button
-                onClick={() => setSelectedSubmission(null)}
-                className="text-white/70 hover:text-white"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
-              {/* Photo & Signature */}
-              {(selectedSubmission.photo || selectedSubmission.signature) && (
-                <div className="flex flex-wrap gap-6 justify-center">
-                  {selectedSubmission.photo && (
-                    <div className="text-center">
-                      <Image
-                        src={selectedSubmission.photo}
-                        alt="Photo"
-                        width={120}
-                        height={150}
-                        className="rounded border object-cover"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Photo</p>
-                      <button
-                        onClick={() => {
-                          const ext = selectedSubmission.photo?.match(/^data:image\/(\w+);/)?.[1] || 'jpg';
-                          const safeName = selectedSubmission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
-                          downloadImage(selectedSubmission.photo!, `${safeName}_photo.${ext}`);
-                        }}
-                        className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1 mx-auto"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Download
-                      </button>
-                    </div>
-                  )}
-                  {selectedSubmission.signature && (
-                    <div className="text-center">
-                      <Image
-                        src={selectedSubmission.signature}
-                        alt="Signature"
-                        width={150}
-                        height={60}
-                        className="rounded border object-contain bg-white"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Signature</p>
-                      <button
-                        onClick={() => {
-                          const ext = selectedSubmission.signature?.match(/^data:image\/(\w+);/)?.[1] || 'png';
-                          const safeName = selectedSubmission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
-                          downloadImage(selectedSubmission.signature!, `${safeName}_signature.${ext}`);
-                        }}
-                        className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1 mx-auto"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Download
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Personal Info */}
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-[#1e3a5f] rounded-full"></span>
-                  Personal Information
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
-                  <div><span className="text-gray-500">Name:</span> <span className="font-medium">{selectedSubmission.student_name}</span></div>
-                  <div><span className="text-gray-500">Gender:</span> <span className="font-medium">{selectedSubmission.gender}</span></div>
-                  <div><span className="text-gray-500">Father:</span> <span className="font-medium">{selectedSubmission.father_name}</span></div>
-                  <div><span className="text-gray-500">Mother:</span> <span className="font-medium">{selectedSubmission.mother_name}</span></div>
-                  <div><span className="text-gray-500">DOB:</span> <span className="font-medium">{selectedSubmission.date_of_birth}</span></div>
-                  <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-medium">{selectedSubmission.address}</span></div>
-                </div>
+      {
+        selectedSubmission && (
+          <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50">
+            <div className="bg-white sm:rounded-xl rounded-t-2xl w-full sm:max-w-2xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto">
+              <div className="sticky top-0 bg-[#1e3a5f] text-white p-4 flex justify-between items-center rounded-t-2xl sm:rounded-t-xl">
+                {/* Mobile drag indicator */}
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/30 rounded-full sm:hidden"></div>
+                <h2 className="text-xl font-bold">Application Details</h2>
+                <button
+                  onClick={() => setSelectedSubmission(null)}
+                  className="text-white/70 hover:text-white"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
 
-              {/* Academic Info */}
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                  Academic Information
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
-                  <div><span className="text-gray-500">Topic:</span> <span className="font-medium">{selectedSubmission.internship_topic}</span></div>
-                  <div><span className="text-gray-500">College:</span> <span className="font-medium">{selectedSubmission.college_name}</span></div>
-                  <div><span className="text-gray-500">Honours:</span> <span className="font-medium">{selectedSubmission.honours_subject}</span></div>
-                  <div><span className="text-gray-500">Semester:</span> <span className="font-medium">{selectedSubmission.current_semester}</span></div>
-                  <div><span className="text-gray-500">Class Roll:</span> <span className="font-medium">{selectedSubmission.class_roll_no}</span></div>
-                  <div><span className="text-gray-500">University:</span> <span className="font-medium">{selectedSubmission.university_name}</span></div>
-                  <div><span className="text-gray-500">Uni Roll No:</span> <span className="font-medium">{selectedSubmission.university_roll_number}</span></div>
-                  <div><span className="text-gray-500">Uni Reg No:</span> <span className="font-medium">{selectedSubmission.university_registration_number}</span></div>
-                </div>
-              </div>
+              <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+                {/* Photo & Signature */}
+                {(selectedSubmission.photo || selectedSubmission.signature) && (
+                  <div className="flex flex-wrap gap-6 justify-center">
+                    {selectedSubmission.photo && (
+                      <div className="text-center">
+                        <Image
+                          src={selectedSubmission.photo}
+                          alt="Photo"
+                          width={120}
+                          height={150}
+                          className="rounded border object-cover"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Photo</p>
+                        <button
+                          onClick={() => {
+                            const ext = selectedSubmission.photo?.match(/^data:image\/(\w+);/)?.[1] || 'jpg';
+                            const safeName = selectedSubmission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
+                            downloadImage(selectedSubmission.photo!, `${safeName}_photo.${ext}`);
+                          }}
+                          className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1 mx-auto"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download
+                        </button>
+                      </div>
+                    )}
+                    {selectedSubmission.signature && (
+                      <div className="text-center">
+                        <Image
+                          src={selectedSubmission.signature}
+                          alt="Signature"
+                          width={150}
+                          height={60}
+                          className="rounded border object-contain bg-white"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Signature</p>
+                        <button
+                          onClick={() => {
+                            const ext = selectedSubmission.signature?.match(/^data:image\/(\w+);/)?.[1] || 'png';
+                            const safeName = selectedSubmission.student_name.replace(/[^a-zA-Z0-9]/g, '_');
+                            downloadImage(selectedSubmission.signature!, `${safeName}_signature.${ext}`);
+                          }}
+                          className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1 mx-auto"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              {/* Contact Info */}
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
-                  Contact Information
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
-                  <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{selectedSubmission.contact_number}</span></div>
-                  <div><span className="text-gray-500">WhatsApp:</span> <span className="font-medium">{selectedSubmission.whatsapp_number || 'Same as phone'}</span></div>
-                  <div className="col-span-2"><span className="text-gray-500">Email:</span> <span className="font-medium">{selectedSubmission.email_address}</span></div>
+                {/* Personal Info */}
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-[#1e3a5f] rounded-full"></span>
+                    Personal Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
+                    <div><span className="text-gray-500">Name:</span> <span className="font-medium">{selectedSubmission.student_name}</span></div>
+                    <div><span className="text-gray-500">Gender:</span> <span className="font-medium">{selectedSubmission.gender}</span></div>
+                    <div><span className="text-gray-500">Father:</span> <span className="font-medium">{selectedSubmission.father_name}</span></div>
+                    <div><span className="text-gray-500">Mother:</span> <span className="font-medium">{selectedSubmission.mother_name}</span></div>
+                    <div><span className="text-gray-500">DOB:</span> <span className="font-medium">{selectedSubmission.date_of_birth}</span></div>
+                    <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-medium">{selectedSubmission.address}</span></div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="text-xs text-gray-400 pt-4 border-t">
-                Submitted on {new Date(selectedSubmission.created_at).toLocaleString('en-IN')}
+                {/* Academic Info */}
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    Academic Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
+                    <div><span className="text-gray-500">Topic:</span> <span className="font-medium">{selectedSubmission.internship_topic}</span></div>
+                    <div><span className="text-gray-500">College:</span> <span className="font-medium">{selectedSubmission.college_name}</span></div>
+                    <div><span className="text-gray-500">Honours:</span> <span className="font-medium">{selectedSubmission.honours_subject}</span></div>
+                    <div><span className="text-gray-500">Semester:</span> <span className="font-medium">{selectedSubmission.current_semester}</span></div>
+                    <div><span className="text-gray-500">Class Roll:</span> <span className="font-medium">{selectedSubmission.class_roll_no}</span></div>
+                    <div><span className="text-gray-500">University:</span> <span className="font-medium">{selectedSubmission.university_name}</span></div>
+                    <div><span className="text-gray-500">Uni Roll No:</span> <span className="font-medium">{selectedSubmission.university_roll_number}</span></div>
+                    <div><span className="text-gray-500">Uni Reg No:</span> <span className="font-medium">{selectedSubmission.university_registration_number}</span></div>
+                  </div>
+                </div>
+
+                {/* Contact Info */}
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                    Contact Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
+                    <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{selectedSubmission.contact_number}</span></div>
+                    <div><span className="text-gray-500">WhatsApp:</span> <span className="font-medium">{selectedSubmission.whatsapp_number || 'Same as phone'}</span></div>
+                    <div className="col-span-2"><span className="text-gray-500">Email:</span> <span className="font-medium">{selectedSubmission.email_address}</span></div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-400 pt-4 border-t">
+                  Submitted on {new Date(selectedSubmission.created_at).toLocaleString('en-IN')}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
