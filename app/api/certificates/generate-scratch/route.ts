@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
     honours_subject: honoursSubject ? String(honoursSubject) : String(course),
     current_semester: String(semester),
     class_roll_no: String(classRoll),
+    university_name: 'Patliputra University',
     university_roll_number: String(rollNo),
     university_registration_number: String(regNo),
     contact_number: contact ? String(contact) : 'N/A',
