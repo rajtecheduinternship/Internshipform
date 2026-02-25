@@ -68,3 +68,21 @@ CREATE TABLE IF NOT EXISTS suspicious_activity (
 
 CREATE INDEX IF NOT EXISTS idx_suspicious_ip ON suspicious_activity(ip_address);
 CREATE INDEX IF NOT EXISTS idx_suspicious_created ON suspicious_activity(created_at);
+
+-- ==================== CERTIFICATES ====================
+
+CREATE TABLE IF NOT EXISTS certificates (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  application_id      UUID NOT NULL REFERENCES internship_applications(id) ON DELETE CASCADE,
+  serial_number       TEXT NOT NULL UNIQUE,
+  rts_reg_number      TEXT NOT NULL,
+  marks               INTEGER NOT NULL CHECK (marks >= 0 AND marks <= 100),
+  grade               TEXT NOT NULL,
+  grade_point         INTEGER NOT NULL,
+  start_date          DATE NOT NULL,
+  end_date            DATE NOT NULL,
+  certificate_url     TEXT,
+  created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_certificates_application_id ON certificates(application_id);

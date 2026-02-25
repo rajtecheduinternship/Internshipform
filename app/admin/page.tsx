@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import JSZip from 'jszip';
+import { GENDER_OPTIONS, INTERNSHIP_TOPICS, COURSES, COLLEGES, HONOURS_SUBJECTS, SEMESTERS } from '@/lib/types';
 
 interface Submission {
   id: string;
@@ -36,6 +37,126 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Certificate modal state
+  const [certModalOpen, setCertModalOpen] = useState(false);
+  const [certTarget, setCertTarget] = useState<Submission | null>(null);
+  const [certRtsRegNumber, setCertRtsRegNumber] = useState('');
+  const [certMarks, setCertMarks] = useState<number | ''>('');
+  const [certStartDate, setCertStartDate] = useState('');
+  const [certEndDate, setCertEndDate] = useState('');
+  const [certLoading, setCertLoading] = useState(false);
+  const [certResult, setCertResult] = useState<{
+    success?: boolean; error?: string;
+    certificateUrl?: string; viewUrl?: string; grade?: string; serialNumber?: string;
+  } | null>(null);
+
+  // Scratch (walk-in) certificate state
+  type ScratchForm = {
+    studentName: string; fatherName: string; gender: string; dob: string;
+    contact: string; email: string; course: string; otherCourse: string;
+    college: string; otherCollege: string; semester: string;
+    honoursSubject: string; otherHonoursSubject: string;
+    rollNo: string; regNo: string; classRoll: string;
+    topic: string; photo: string | null;
+    rtsRegNumber: string; marks: number | ''; startDate: string; endDate: string;
+  };
+  const SCRATCH_DEFAULTS: ScratchForm = {
+    studentName: '', fatherName: '', gender: 'Male', dob: '',
+    contact: '', email: '', course: '', otherCourse: '',
+    college: '', otherCollege: '', semester: '',
+    honoursSubject: '', otherHonoursSubject: '',
+    rollNo: '', regNo: '', classRoll: '', topic: '', photo: null,
+    rtsRegNumber: '', marks: '', startDate: '', endDate: '',
+  };
+  const [scratchModalOpen, setScratchModalOpen] = useState(false);
+  const [scratchForm, setScratchForm] = useState<ScratchForm>(SCRATCH_DEFAULTS);
+  const [scratchLoading, setScratchLoading] = useState(false);
+  const [scratchResult, setScratchResult] = useState<{
+    success?: boolean; error?: string;
+    certificateUrl?: string; viewUrl?: string; grade?: string; serialNumber?: string;
+  } | null>(null);
+
+  function setScratch<K extends keyof ScratchForm>(field: K, value: ScratchForm[K]) {
+    setScratchForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  function previewGrade(marks: number | ''): string {
+    if (marks === '') return '';
+    if (marks >= 90) return 'O (Outstanding) — GP 10';
+    if (marks >= 80) return 'A+ — GP 9';
+    if (marks >= 70) return 'A — GP 8';
+    if (marks >= 60) return 'B+ — GP 7';
+    if (marks >= 50) return 'B — GP 6';
+    if (marks >= 45) return 'C — GP 5';
+    if (marks >= 40) return 'D — GP 4';
+    return 'F (Fail) — GP 0';
+  }
+
+  async function handleGenerateCertificate() {
+    if (!certTarget || certMarks === '' || !certStartDate || !certEndDate || !certRtsRegNumber) return;
+    setCertLoading(true);
+    setCertResult(null);
+    try {
+      const res = await fetch('/api/certificates/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${password}`,
+        },
+        body: JSON.stringify({
+          applicationId: certTarget.id,
+          rtsRegNumber: certRtsRegNumber,
+          marks: certMarks,
+          startDate: certStartDate,
+          endDate: certEndDate,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCertResult({
+          success: true,
+          grade: data.grade,
+          serialNumber: data.serialNumber,
+          certificateUrl: data.certificateUrl,
+          viewUrl: data.viewUrl,
+        });
+      } else {
+        setCertResult({ error: data.error || 'Generation failed' });
+      }
+    } catch {
+      setCertResult({ error: 'Network error' });
+    } finally {
+      setCertLoading(false);
+    }
+  }
+
+  async function handleGenerateScratchCertificate() {
+    const { studentName, fatherName, course, otherCourse, college, otherCollege, honoursSubject, otherHonoursSubject, semester, rollNo, regNo, classRoll, topic, rtsRegNumber, marks, startDate, endDate } = scratchForm;
+    const resolvedCourse = course === 'Other' ? otherCourse : course;
+    const resolvedCollege = college === 'Other' ? otherCollege : college;
+    const resolvedHonours = honoursSubject === 'Other' ? otherHonoursSubject : honoursSubject;
+    if (!studentName || !fatherName || !resolvedCourse || !resolvedCollege || !semester || !rollNo || !regNo || !classRoll || !topic || !rtsRegNumber || marks === '' || !startDate || !endDate) return;
+    setScratchLoading(true);
+    setScratchResult(null);
+    try {
+      const res = await fetch('/api/certificates/generate-scratch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${password}` },
+        body: JSON.stringify({ ...scratchForm, course: resolvedCourse, college: resolvedCollege, honoursSubject: resolvedHonours }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setScratchResult({ success: true, grade: data.grade, serialNumber: data.serialNumber, certificateUrl: data.certificateUrl, viewUrl: data.viewUrl });
+      } else {
+        setScratchResult({ error: data.error || 'Generation failed' });
+      }
+    } catch {
+      setScratchResult({ error: 'Network error' });
+    } finally {
+      setScratchLoading(false);
+    }
+  }
 
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
@@ -309,7 +430,20 @@ export default function AdminPage() {
             </button>
           </div>
           {/* Bottom row - Action buttons */}
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-3 flex-wrap">
+            <button
+              onClick={() => {
+                setScratchForm(SCRATCH_DEFAULTS);
+                setScratchResult(null);
+                setScratchModalOpen(true);
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>New Certificate</span>
+            </button>
             <button
               onClick={fetchSubmissions}
               className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center"
@@ -402,8 +536,7 @@ export default function AdminPage() {
                 {filteredSubmissions.map((submission, index) => (
                   <div
                     key={submission.id}
-                    onClick={() => setSelectedSubmission(submission)}
-                    className="p-4 hover:bg-gray-50 cursor-pointer active:bg-gray-100"
+                    className="p-4 hover:bg-gray-50"
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex-1 min-w-0">
@@ -424,6 +557,28 @@ export default function AdminPage() {
                       </span>
                     </div>
                     <div className="text-xs text-gray-500 mt-1 truncate">{submission.college_name}</div>
+                    <div className="flex gap-3 mt-2">
+                      <button
+                        onClick={() => setSelectedSubmission(submission)}
+                        className="text-[#1e3a5f] text-sm font-medium"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCertTarget(submission);
+                          setCertRtsRegNumber('');
+                          setCertMarks('');
+                          setCertStartDate('');
+                          setCertEndDate('');
+                          setCertResult(null);
+                          setCertModalOpen(true);
+                        }}
+                        className="text-green-700 text-sm font-medium"
+                      >
+                        Certificate
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -474,12 +629,28 @@ export default function AdminPage() {
                           })}
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            onClick={() => setSelectedSubmission(submission)}
-                            className="text-[#1e3a5f] hover:underline text-sm font-medium"
-                          >
-                            View Details
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setSelectedSubmission(submission)}
+                              className="text-[#1e3a5f] hover:underline text-sm font-medium"
+                            >
+                              View Details
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCertTarget(submission);
+                                setCertRtsRegNumber('');
+                                setCertMarks('');
+                                setCertStartDate('');
+                                setCertEndDate('');
+                                setCertResult(null);
+                                setCertModalOpen(true);
+                              }}
+                              className="text-green-700 hover:underline text-sm font-medium"
+                            >
+                              Certificate
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -490,6 +661,407 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+
+      {/* Certificate Modal */}
+      {certModalOpen && certTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50">
+          <div className="bg-white sm:rounded-xl rounded-t-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[#1e3a5f] text-white p-4 flex justify-between items-center rounded-t-2xl sm:rounded-t-xl">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/30 rounded-full sm:hidden"></div>
+              <h2 className="text-lg font-bold">Generate Certificate</h2>
+              <button onClick={() => setCertModalOpen(false)} className="text-white/70 hover:text-white">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Student summary */}
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <div className="font-semibold text-gray-800">{certTarget.student_name}</div>
+                <div className="text-gray-500">Uni Reg No: {certTarget.university_registration_number}</div>
+              </div>
+
+              {/* RTS Reg Number */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RTS Registration Number</label>
+                <input
+                  type="text"
+                  value={certRtsRegNumber}
+                  onChange={(e) => setCertRtsRegNumber(e.target.value)}
+                  placeholder="e.g. 1225/RTS-11/RC027/INT959"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-sm"
+                  disabled={!!certResult?.success}
+                />
+              </div>
+
+              {/* Marks */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Marks (0–100)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={certMarks}
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? '' : Math.min(100, Math.max(0, parseInt(e.target.value)));
+                    setCertMarks(v);
+                  }}
+                  placeholder="Enter marks"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-sm"
+                  disabled={!!certResult?.success}
+                />
+                {certMarks !== '' && (
+                  <p className="text-xs text-blue-700 mt-1 font-medium">Grade: {previewGrade(certMarks)}</p>
+                )}
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={certStartDate}
+                    onChange={(e) => setCertStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-sm"
+                    disabled={!!certResult?.success}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={certEndDate}
+                    onChange={(e) => setCertEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-sm"
+                    disabled={!!certResult?.success}
+                  />
+                </div>
+              </div>
+
+              {/* Generate button */}
+              {!certResult?.success && (
+                <button
+                  onClick={handleGenerateCertificate}
+                  disabled={
+                    certLoading ||
+                    certMarks === '' ||
+                    !certStartDate ||
+                    !certEndDate ||
+                    !certRtsRegNumber.trim()
+                  }
+                  className="w-full bg-[#1e3a5f] text-white py-2.5 rounded-lg font-medium hover:bg-[#152a45] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {certLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate Certificate'
+                  )}
+                </button>
+              )}
+
+              {/* Result banner */}
+              {certResult?.success && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm space-y-2">
+                  <div className="font-semibold text-green-800">Certificate generated successfully!</div>
+                  <div className="text-green-700">Serial: {certResult.serialNumber}</div>
+                  <div className="text-green-700">Grade: {certResult.grade}</div>
+                  {certResult.viewUrl && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600 text-xs">View URL:</span>
+                      <a href={certResult.viewUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-blue-700 hover:underline text-xs break-all font-mono">{certResult.viewUrl}</a>
+                      <button onClick={() => navigator.clipboard.writeText(certResult.viewUrl!)}
+                        className="text-gray-400 hover:text-gray-700 flex-shrink-0" title="Copy URL">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  {certResult.certificateUrl && (
+                    <a href={certResult.certificateUrl} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-700 hover:underline font-medium">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download PDF
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {certResult?.error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                  {certResult.error}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scratch Certificate Modal */}
+      {scratchModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50">
+          <div className="bg-white sm:rounded-xl rounded-t-2xl w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto">
+            <div className="sticky top-0 bg-emerald-700 text-white p-4 flex justify-between items-center rounded-t-2xl sm:rounded-t-xl z-10">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/30 rounded-full sm:hidden"></div>
+              <h2 className="text-lg font-bold">New Certificate (Walk-in Student)</h2>
+              <button onClick={() => setScratchModalOpen(false)} className="text-white/70 hover:text-white">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              {/* Student Details */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Student Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Student Name *</label>
+                    <input type="text" value={scratchForm.studentName} onChange={e => setScratch('studentName', e.target.value)}
+                      placeholder="Full name" disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Father&apos;s Name *</label>
+                    <input type="text" value={scratchForm.fatherName} onChange={e => setScratch('fatherName', e.target.value)}
+                      placeholder="Father's full name" disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Gender *</label>
+                    <select value={scratchForm.gender} onChange={e => setScratch('gender', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                      {GENDER_OPTIONS.map(g => <option key={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Date of Birth <span className="text-gray-400">(optional)</span></label>
+                    <input type="date" value={scratchForm.dob} onChange={e => setScratch('dob', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Contact Number *</label>
+                    <input type="text" value={scratchForm.contact} onChange={e => setScratch('contact', e.target.value)}
+                      placeholder="10-digit number" disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Email <span className="text-gray-400">(optional)</span></label>
+                    <input type="email" value={scratchForm.email} onChange={e => setScratch('email', e.target.value)}
+                      placeholder="Auto-generated if blank" disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Course *</label>
+                    <select value={scratchForm.course} onChange={e => setScratch('course', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                      <option value="">Select Course</option>
+                      {COURSES.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                    {scratchForm.course === 'Other' && (
+                      <input type="text" value={scratchForm.otherCourse} onChange={e => setScratch('otherCourse', e.target.value)}
+                        placeholder="Enter course name" disabled={!!scratchResult?.success}
+                        className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Internship Topic *</label>
+                    <select value={scratchForm.topic} onChange={e => setScratch('topic', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                      <option value="">Select Topic</option>
+                      {INTERNSHIP_TOPICS.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">College Name *</label>
+                    <select value={scratchForm.college} onChange={e => setScratch('college', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                      <option value="">Select College</option>
+                      {COLLEGES.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                    {scratchForm.college === 'Other' && (
+                      <input type="text" value={scratchForm.otherCollege} onChange={e => setScratch('otherCollege', e.target.value)}
+                        placeholder="Enter college name" disabled={!!scratchResult?.success}
+                        className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Honours Subject *</label>
+                    <select value={scratchForm.honoursSubject} onChange={e => setScratch('honoursSubject', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                      <option value="">Select Subject</option>
+                      {HONOURS_SUBJECTS.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                    {scratchForm.honoursSubject === 'Other' && (
+                      <input type="text" value={scratchForm.otherHonoursSubject} onChange={e => setScratch('otherHonoursSubject', e.target.value)}
+                        placeholder="Enter subject name" disabled={!!scratchResult?.success}
+                        className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Current Semester *</label>
+                    <select value={scratchForm.semester} onChange={e => setScratch('semester', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                      <option value="">Select Semester</option>
+                      {SEMESTERS.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Class Roll No *</label>
+                    <input type="text" value={scratchForm.classRoll} onChange={e => setScratch('classRoll', e.target.value)}
+                      placeholder="Class roll number" disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">University Roll No *</label>
+                    <input type="text" value={scratchForm.rollNo} onChange={e => setScratch('rollNo', e.target.value)}
+                      placeholder="University roll number" disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">University Reg No *</label>
+                    <input type="text" value={scratchForm.regNo} onChange={e => setScratch('regNo', e.target.value)}
+                      placeholder="University registration number" disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Student Photo <span className="text-gray-400">(optional)</span></label>
+                    {scratchForm.photo ? (
+                      <div className="flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={scratchForm.photo} alt="Preview" className="w-16 h-20 object-cover rounded border" />
+                        <button onClick={() => setScratch('photo', null)}
+                          className="text-red-600 text-sm hover:underline" disabled={!!scratchResult?.success}>Remove</button>
+                      </div>
+                    ) : (
+                      <input type="file" accept="image/*" disabled={!!scratchResult?.success}
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => setScratch('photo', ev.target?.result as string);
+                          reader.readAsDataURL(file);
+                        }}
+                        className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Certificate Details */}
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Certificate Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">RTS Registration Number *</label>
+                    <input type="text" value={scratchForm.rtsRegNumber} onChange={e => setScratch('rtsRegNumber', e.target.value)}
+                      placeholder="e.g. 1225/RTS-11/RC027/INT959" disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Marks (0–100) *</label>
+                    <input type="number" min={0} max={100} value={scratchForm.marks} disabled={!!scratchResult?.success}
+                      onChange={e => setScratch('marks', e.target.value === '' ? '' : Math.min(100, Math.max(0, parseInt(e.target.value))))}
+                      placeholder="Enter marks"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                    {scratchForm.marks !== '' && (
+                      <p className="text-xs text-emerald-700 mt-1 font-medium">Grade: {previewGrade(scratchForm.marks)}</p>
+                    )}
+                  </div>
+                  <div></div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
+                    <input type="date" value={scratchForm.startDate} onChange={e => setScratch('startDate', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">End Date *</label>
+                    <input type="date" value={scratchForm.endDate} onChange={e => setScratch('endDate', e.target.value)}
+                      disabled={!!scratchResult?.success}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Generate button */}
+              {!scratchResult?.success && (
+                <button onClick={handleGenerateScratchCertificate} disabled={
+                  scratchLoading || !scratchForm.studentName || !scratchForm.fatherName ||
+                  !scratchForm.course || (scratchForm.course === 'Other' && !scratchForm.otherCourse) ||
+                  !scratchForm.college || (scratchForm.college === 'Other' && !scratchForm.otherCollege) ||
+                  !scratchForm.honoursSubject || (scratchForm.honoursSubject === 'Other' && !scratchForm.otherHonoursSubject) ||
+                  !scratchForm.semester || !scratchForm.topic ||
+                  !scratchForm.rollNo || !scratchForm.regNo || !scratchForm.classRoll ||
+                  !scratchForm.rtsRegNumber.trim() ||
+                  scratchForm.marks === '' || !scratchForm.startDate || !scratchForm.endDate
+                }
+                  className="w-full bg-emerald-700 text-white py-2.5 rounded-lg font-medium hover:bg-emerald-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  {scratchLoading ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Generating...</>
+                  ) : 'Generate Certificate'}
+                </button>
+              )}
+
+              {/* Result banner */}
+              {scratchResult?.success && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm space-y-2">
+                  <div className="font-semibold text-green-800">Certificate generated successfully!</div>
+                  <div className="text-green-700">Serial: {scratchResult.serialNumber}</div>
+                  <div className="text-green-700">Grade: {scratchResult.grade}</div>
+                  {scratchResult.viewUrl && (
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-600 font-medium">Certificate view URL (share this):</div>
+                      <div className="flex items-center gap-2 bg-white border rounded p-2">
+                        <a href={scratchResult.viewUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-blue-700 hover:underline text-xs break-all font-mono flex-1">{scratchResult.viewUrl}</a>
+                        <button onClick={() => navigator.clipboard.writeText(scratchResult!.viewUrl!)}
+                          className="text-gray-400 hover:text-gray-700 flex-shrink-0" title="Copy URL">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {scratchResult.certificateUrl && (
+                    <a href={scratchResult.certificateUrl} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-700 hover:underline font-medium">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download PDF
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {scratchResult?.error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                  {scratchResult.error}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {
