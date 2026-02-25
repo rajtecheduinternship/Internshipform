@@ -19,6 +19,7 @@ import {
   MAX_REQUEST_SIZE,
 } from '@/lib/security';
 import { verifyFormToken } from '@/app/api/form-token/route';
+import QRCode from 'qrcode';
 
 // Configuration: Use database for rate limiting in production
 const USE_DB_RATE_LIMITING = process.env.USE_DB_RATE_LIMITING === 'true';
@@ -394,7 +395,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Sanitize text inputs before storing
-    const { error: insertError } = await db.insertApplication({
+    const { error: insertError, id: formId } = await db.insertApplication({
       student_name: cleanText(data.studentName, 100),
       father_name: cleanText(data.fatherName, 100),
       mother_name: cleanText(data.motherName, 100),
@@ -419,7 +420,7 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString(),
     });
 
-    if (insertError) {
+    if (insertError || !formId) {
       console.error('Database insert error:', insertError);
       return NextResponse.json(
         { error: 'Failed to submit application. Please try again.' },
@@ -427,8 +428,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate QR code for the form view URL
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
+                    (request.headers.get('host') ? `${request.headers.get('x-forwarded-proto') || 'http'}://${request.headers.get('host')}` : 'http://localhost:3000');
+    const formViewUrl = `${baseUrl}/form/view/${formId}`;
+    
+    let qrCodeDataUrl: string | undefined;
+    try {
+      qrCodeDataUrl = await QRCode.toDataURL(formViewUrl, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+    } catch (qrError) {
+      console.error('QR code generation error:', qrError);
+      // Continue without QR code if generation fails
+    }
+
     return NextResponse.json(
-      { success: true, message: 'Application submitted successfully!' },
+      {
+        success: true,
+        message: 'Application submitted successfully!',
+        formId,
+        formViewUrl,
+        qrCode: qrCodeDataUrl
+      },
       { status: 200 }
     );
 
