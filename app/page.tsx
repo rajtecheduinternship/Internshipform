@@ -108,6 +108,7 @@ export default function InternshipForm() {
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
   const [submittedData, setSubmittedData] = useState<InternshipFormData | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<{ qrCode?: string; formViewUrl?: string; formId?: string } | null>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -248,6 +249,11 @@ export default function InternshipForm() {
       if (response.ok) {
         // Capture the submitted data before resetting
         setSubmittedData({ ...formData });
+        setQrCodeData({
+          qrCode: result.qrCode,
+          formViewUrl: result.formViewUrl,
+          formId: result.formId
+        });
         setShowSuccessScreen(true);
         setSubmitStatus({ type: 'success', message: 'Application submitted successfully!' });
       } else {
@@ -298,6 +304,7 @@ export default function InternshipForm() {
   const handleNewApplication = () => {
     setShowSuccessScreen(false);
     setSubmittedData(null);
+    setQrCodeData(null);
     setSubmitStatus(null);
     handleReset();
   };
@@ -565,6 +572,69 @@ export default function InternshipForm() {
               </div>
             </div>
           </div>
+
+          {/* QR Code Section */}
+          {qrCodeData?.qrCode && (
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 mb-6">
+              <div className="bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-600 px-6 py-4">
+                <h2 className="text-xl font-bold text-white">QR Code - View Your Application</h2>
+                <p className="text-blue-100 text-sm">Scan this QR code to view your submitted application anytime</p>
+              </div>
+              <div className="p-8 text-center">
+                <div className="inline-block bg-white p-4 rounded-2xl shadow-xl mb-4">
+                  <Image
+                    src={qrCodeData.qrCode}
+                    alt="QR Code for Application"
+                    width={300}
+                    height={300}
+                    className="rounded-lg"
+                  />
+                </div>
+                <p className="text-white/70 text-sm mb-4">
+                  Scan this QR code with your phone camera to view your application
+                </p>
+                {qrCodeData.formViewUrl && (
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <p className="text-white/50 text-xs mb-2">Direct Link:</p>
+                    <a
+                      href={qrCodeData.formViewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 text-sm break-all underline"
+                    >
+                      {qrCodeData.formViewUrl}
+                    </a>
+                  </div>
+                )}
+                <div className="mt-4 flex gap-3 justify-center">
+                  <a
+                    href={qrCodeData.qrCode}
+                    download={`internship-qr-${qrCodeData.formId || 'code'}.png`}
+                    className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:scale-105"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download QR Code
+                  </a>
+                  {qrCodeData.formViewUrl && (
+                    <a
+                      href={qrCodeData.formViewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:scale-105"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      View Application
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

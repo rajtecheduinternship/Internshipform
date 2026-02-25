@@ -92,19 +92,49 @@ export const db = {
     }
   },
 
-  async insertApplication(data: ApplicationRecord): Promise<{ error: Error | null }> {
+  async getApplicationById(id: string): Promise<ApplicationRecord | null> {
     if (USE_LOCAL_DB) {
       const pool = getPgPool();
       try {
-        await pool.query(
+        const result = await pool.query(
+          'SELECT * FROM internship_applications WHERE id = $1',
+          [id]
+        );
+        return result.rows[0] || null;
+      } catch (err) {
+        console.error('Error fetching application by ID:', err);
+        return null;
+      }
+    } else {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('internship_applications')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching application by ID:', error);
+        return null;
+      }
+      return data;
+    }
+  },
+
+  async insertApplication(data: ApplicationRecord): Promise<{ error: Error | null; id?: string }> {
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      try {
+        const result = await pool.query(
           `INSERT INTO internship_applications (
             student_name, father_name, mother_name, gender, date_of_birth,
-            address, internship_topic, college_name, honours_subject,
+            address, internship_topic, course, college_name, honours_subject,
             current_semester, class_roll_no, university_name,
             university_roll_number, university_registration_number,
             contact_number, whatsapp_number, email_address, photo,
             signature, ip_address, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+          RETURNING id`,
           [
             data.student_name,
             data.father_name,
@@ -113,6 +143,7 @@ export const db = {
             data.date_of_birth,
             data.address,
             data.internship_topic,
+            data.course,
             data.college_name,
             data.honours_subject,
             data.current_semester,
@@ -129,14 +160,21 @@ export const db = {
             data.created_at || new Date().toISOString(),
           ]
         );
-        return { error: null };
+        return { error: null, id: result.rows[0].id };
       } catch (err) {
         return { error: err as Error };
       }
     } else {
       const supabase = getSupabaseClient();
-      const { error } = await supabase.from('internship_applications').insert(data);
-      return { error: error ? new Error(error.message) : null };
+      const { data: insertedData, error } = await supabase
+        .from('internship_applications')
+        .insert(data)
+        .select('id')
+        .single();
+      return {
+        error: error ? new Error(error.message) : null,
+        id: insertedData?.id
+      };
     }
   },
 

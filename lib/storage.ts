@@ -50,6 +50,11 @@ export async function uploadImageToStorage(
 ): Promise<string | null> {
     try {
         const supabase = createServerClient();
+        
+        // If Supabase is not configured, return null
+        if (!supabase) {
+            return null;
+        }
 
         // Convert base64 to blob
         const { blob, extension } = base64ToBlob(base64DataUrl);
@@ -91,17 +96,29 @@ export async function uploadImagesToStorage(
     signature: string | undefined,
     universityRollNumber: string
 ): Promise<{ photoUrl: string | undefined; signatureUrl: string | undefined }> {
+    // Check if Supabase is configured
+    const supabase = createServerClient();
+    
+    // If Supabase is not configured, return the base64 data as-is
+    if (!supabase) {
+        console.log('Supabase not configured, storing images as base64 in database');
+        return {
+            photoUrl: photo,
+            signatureUrl: signature
+        };
+    }
+
     let photoUrl: string | undefined;
     let signatureUrl: string | undefined;
 
     if (photo) {
         const url = await uploadImageToStorage(photo, universityRollNumber, 'photo');
-        photoUrl = url || undefined;
+        photoUrl = url || photo; // Fallback to base64 if upload fails
     }
 
     if (signature) {
         const url = await uploadImageToStorage(signature, universityRollNumber, 'signature');
-        signatureUrl = url || undefined;
+        signatureUrl = url || signature; // Fallback to base64 if upload fails
     }
 
     return { photoUrl, signatureUrl };
