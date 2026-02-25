@@ -81,7 +81,7 @@ export async function generateCertificatePDF(input: CertificateInput): Promise<B
       const words = content.split(/(\s+)/);
       for (const word of words) {
         if (!word) continue;
-        const isWhitespace = /^\\s+$/.test(word);
+        const isWhitespace = /^\s+$/.test(word);
         const wordWidth = isWhitespace ? spaceWidths[isBold ? 'bold' : 'normal'] * word.length : doc.getTextWidth(word);
 
         if (currentLineWidth + wordWidth > maxWidth && !isWhitespace && currentLine.length > 0) {
@@ -100,10 +100,11 @@ export async function generateCertificatePDF(input: CertificateInput): Promise<B
 
     let y = startY;
     for (const line of lines) {
-      // Shift left slightly to make room for photo/QR on the right
-      let x = 140 - (line.width / 2);
+      // Center within left text column (x=18 to x=222), clear of right photo column
+      let x = 120 - (line.width / 2);
+      if (x < 18) x = 18; // never clip left border
       for (const el of line.elements) {
-        if (!/^\\s+$/.test(el.text)) {
+        if (!/^\s+$/.test(el.text)) {
           doc.setFont('helvetica', el.isBold ? 'bold' : 'normal');
           doc.text(el.text, x, y);
         }
@@ -236,10 +237,10 @@ export async function generateCertificatePDF(input: CertificateInput): Promise<B
     `We wish ${pronoun} the very best in all ${possessive} future endeavours.`;
 
   doc.setTextColor(40, 40, 40);
-  drawFormattedText(bodyText, 74, 6, 200);
+  drawFormattedText(bodyText, 74, 6, 178);
 
   // 7. Student ID grid
-  const gridY = 125;
+  const gridY = 127;
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(40, 40, 40);
@@ -256,24 +257,27 @@ export async function generateCertificatePDF(input: CertificateInput): Promise<B
   doc.text(`${marks}/100`, 60, gridY + 16);
   doc.text(`${formatDateDMY(startDate)} to ${formatDateDMY(endDate)}`, 60, gridY + 24);
 
-  // 8. Photo (Right Side, below logo)
+  // 8. Right column: Photo (top) → QR (below) — starts at x=240, clear of text column
+  const rightColX = 240;
+  const rightColW = 38; // fits to x=278 (inner border at 282)
+
   if (photoBase64) {
-    doc.addImage(photoBase64, photoFormat, 256, 48, 20, 25);
+    // Photo: y=55 to y=93 (38mm tall)
+    doc.addImage(photoBase64, photoFormat, rightColX, 55, rightColW, 38);
     doc.setDrawColor(20, 100, 40);
     doc.setLineWidth(0.5);
-    doc.rect(256, 48, 20, 25);
+    doc.rect(rightColX, 55, rightColW, 38);
   }
 
-  // 9. QR and Details (Moved up, Right Side)
-  doc.addImage(qrBase64, 'PNG', 255, 78, 22, 22);
+  // QR code: y=96 to y=126 (30mm), 4mm gap below photo
+  doc.addImage(qrBase64, 'PNG', rightColX, 96, rightColW, 30);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text('Scan to verify', 266, 104, { align: 'center' });
+  doc.text('Scan to verify', rightColX + rightColW / 2, 129, { align: 'center' });
 
-  // Right aligned Sl No. so it never breaks out of the right border
-  doc.setFontSize(8);
-  doc.text(`Sl. No. ${serialNumber}`, 278, 114, { align: 'right' });
+  doc.setFontSize(7.5);
+  doc.text(`Sl. No. ${serialNumber}`, rightColX + rightColW / 2, 135, { align: 'center' });
 
 
   // 10. Bottom Row: Date and Signatures
