@@ -25,8 +25,12 @@ export async function GET(
       );
     }
 
+    // Strip sensitive internal fields before sending to client
+    const { ip_address, ...publicData } = formData;
+    void ip_address;
+
     return NextResponse.json(
-      { success: true, data: formData },
+      { success: true, data: publicData },
       { status: 200 }
     );
   } catch (error) {
