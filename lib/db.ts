@@ -52,6 +52,20 @@ export interface ApplicationRecord {
   created_at?: string;
 }
 
+export interface CertificateRecord {
+  id?: string;
+  application_id: string;
+  serial_number: string;
+  rts_reg_number: string;
+  marks: number;
+  grade: string;
+  grade_point: number;
+  start_date: string;
+  end_date: string;
+  certificate_url?: string | null;
+  created_at?: string;
+}
+
 // Database operations
 export const db = {
   async findByEmail(email: string): Promise<{ id: string } | null> {
@@ -299,6 +313,124 @@ export const db = {
         console.error('Rate limit check failed:', err);
         return { allowed: true, remaining: maxAttempts, resetAt: new Date(now.getTime() + windowMs), error: err as Error };
       }
+    }
+  },
+
+  // ==================== CERTIFICATES ====================
+
+  async insertCertificate(data: Omit<CertificateRecord, 'id' | 'created_at'>): Promise<{ error: Error | null; id?: string }> {
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      try {
+        const result = await pool.query(
+          `INSERT INTO certificates (application_id, serial_number, rts_reg_number, marks, grade, grade_point, start_date, end_date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+          [data.application_id, data.serial_number, data.rts_reg_number, data.marks, data.grade, data.grade_point, data.start_date, data.end_date]
+        );
+        return { error: null, id: result.rows[0].id };
+      } catch (err) {
+        return { error: err as Error };
+      }
+    } else {
+      const supabase = getSupabaseClient();
+      const { data: inserted, error } = await supabase
+        .from('certificates')
+        .insert(data)
+        .select('id')
+        .single();
+      return { error: error ? new Error(error.message) : null, id: inserted?.id };
+    }
+  },
+
+  async getCertificateById(id: string): Promise<CertificateRecord | null> {
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      try {
+        const result = await pool.query('SELECT * FROM certificates WHERE id = $1', [id]);
+        return result.rows[0] || null;
+      } catch (err) {
+        console.error('Error fetching certificate by ID:', err);
+        return null;
+      }
+    } else {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) {
+        console.error('Error fetching certificate by ID:', error);
+        return null;
+      }
+      return data;
+    }
+  },
+
+  async getCertificateByApplicationId(applicationId: string): Promise<CertificateRecord | null> {
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      try {
+        const result = await pool.query('SELECT * FROM certificates WHERE application_id = $1', [applicationId]);
+        return result.rows[0] || null;
+      } catch (err) {
+        console.error('Error fetching certificate by application ID:', err);
+        return null;
+      }
+    } else {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('application_id', applicationId)
+        .single();
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching certificate by application ID:', error);
+      }
+      return data || null;
+    }
+  },
+
+  async getNextCertificateSerial(year: number): Promise<string> {
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      try {
+        const result = await pool.query(
+          `SELECT COUNT(*) as count FROM certificates WHERE serial_number LIKE $1`,
+          [`RTS-CERT-${year}-%`]
+        );
+        const count = parseInt(result.rows[0]?.count || '0', 10);
+        return `RTS-CERT-${year}-${String(count + 1).padStart(5, '0')}`;
+      } catch (err) {
+        console.error('Error getting next certificate serial:', err);
+        return `RTS-CERT-${year}-${String(Date.now()).slice(-5)}`;
+      }
+    } else {
+      const supabase = getSupabaseClient();
+      const { count } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true })
+        .like('serial_number', `RTS-CERT-${year}-%`);
+      return `RTS-CERT-${year}-${String((count || 0) + 1).padStart(5, '0')}`;
+    }
+  },
+
+  async updateCertificateUrl(id: string, url: string): Promise<{ error: Error | null }> {
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      try {
+        await pool.query('UPDATE certificates SET certificate_url = $1 WHERE id = $2', [url, id]);
+        return { error: null };
+      } catch (err) {
+        return { error: err as Error };
+      }
+    } else {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase
+        .from('certificates')
+        .update({ certificate_url: url })
+        .eq('id', id);
+      return { error: error ? new Error(error.message) : null };
     }
   },
 
