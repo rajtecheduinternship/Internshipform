@@ -202,7 +202,7 @@ export async function generateCertificatePDF(input: CertificateInput): Promise<B
   doc.text('Reg. No: U72900BR2023PTC062819', 252, 34, { align: 'right' });
 
   if (isoLogoBase64) {
-    doc.addImage(isoLogoBase64, 'PNG', 205, 35, 12, 12);
+    doc.addImage(isoLogoBase64, 'PNG', 190, 27, 12, 12);
   }
   doc.text('ISO 9001:2015 Certified', 252, 43, { align: 'right' });
 
