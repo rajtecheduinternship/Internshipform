@@ -1,6 +1,63 @@
 import { createServerClient } from './supabase';
+import { S3Client, PutObjectCommand, CreateBucketCommand, HeadBucketCommand, PutBucketPolicyCommand } from '@aws-sdk/client-s3';
 
 const BUCKET_NAME = 'internship_files';
+
+// ── MinIO / S3 helpers (local dev) ────────────────────────────────────────────
+
+function getS3Client(): S3Client | null {
+  const endpoint = process.env.MINIO_ENDPOINT;
+  const accessKeyId = process.env.MINIO_ACCESS_KEY;
+  const secretAccessKey = process.env.MINIO_SECRET_KEY;
+  if (!endpoint || !accessKeyId || !secretAccessKey) return null;
+  return new S3Client({
+    endpoint,
+    region: 'us-east-1',
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true, // required for MinIO
+  });
+}
+
+async function ensureS3Bucket(client: S3Client, bucket: string): Promise<void> {
+  try {
+    await client.send(new HeadBucketCommand({ Bucket: bucket }));
+  } catch {
+    // Bucket doesn't exist — create it and make it public-read
+    await client.send(new CreateBucketCommand({ Bucket: bucket }));
+    await client.send(new PutBucketPolicyCommand({
+      Bucket: bucket,
+      Policy: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [{
+          Effect: 'Allow',
+          Principal: { AWS: ['*'] },
+          Action: ['s3:GetObject'],
+          Resource: [`arn:aws:s3:::${bucket}/*`],
+        }],
+      }),
+    }));
+  }
+}
+
+async function uploadToS3(buffer: Buffer, objectKey: string, contentType: string): Promise<string | null> {
+  const client = getS3Client();
+  if (!client) return null;
+  const bucket = process.env.MINIO_BUCKET || BUCKET_NAME;
+  try {
+    await ensureS3Bucket(client, bucket);
+    await client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      Body: buffer,
+      ContentType: contentType,
+    }));
+    // Public URL: <endpoint>/<bucket>/<key>
+    return `${process.env.MINIO_ENDPOINT}/${bucket}/${objectKey}`;
+  } catch (err) {
+    console.error('MinIO upload error:', err);
+    return null;
+  }
+}
 
 /**
  * Converts a base64 data URL to a Blob
@@ -130,6 +187,44 @@ export async function uploadImagesToStorage(
 export function isUrl(str: string | null | undefined): boolean {
     if (!str) return false;
     return str.startsWith('http://') || str.startsWith('https://');
+}
+
+/**
+ * Uploads a certificate PDF — uses MinIO locally (USE_LOCAL_DB=true), Supabase in prod.
+ */
+export async function uploadCertificatePDF(pdfBuffer: Buffer, certId: string): Promise<string | null> {
+    const objectKey = `certificates/${certId}.pdf`;
+
+    if (process.env.USE_LOCAL_DB === 'true') {
+        return uploadToS3(pdfBuffer, objectKey, 'application/pdf');
+    }
+
+    // Prod path: Supabase Storage
+    try {
+        const supabase = createServerClient();
+        if (!supabase) return null;
+
+        const { data, error } = await supabase.storage
+            .from(BUCKET_NAME)
+            .upload(objectKey, pdfBuffer, {
+                contentType: 'application/pdf',
+                upsert: true,
+            });
+
+        if (error) {
+            console.error('Failed to upload certificate PDF:', error);
+            return null;
+        }
+
+        const { data: urlData } = supabase.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(data.path);
+
+        return urlData.publicUrl;
+    } catch (error) {
+        console.error('Error uploading certificate PDF:', error);
+        return null;
+    }
 }
 
 /**

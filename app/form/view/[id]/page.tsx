@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
+import { ApplicationStatus } from '@/components/admin/ApplicationReview';
+import { useCopy } from '@/components/help/i18n';
 import { ApplicationRecord } from '@/lib/db';
 
 export default function ViewFormPage() {
   const params = useParams();
+  const t = useCopy();
   const id = params.id as string;
   const [formData, setFormData] = useState<ApplicationRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +100,7 @@ export default function ViewFormPage() {
           </div>
         </div>
 
+        <section className="ui-card ui-card-pad mb-6"><div className="flex items-center justify-between gap-3"><h2 className="ui-h2">{t('Admission status', 'प्रवेश की स्थिति')}</h2><ApplicationStatus status={formData.approval_status} /></div><p className="ui-muted mt-3">{formData.approval_status === 'approved' ? t('Your application is approved. You can sign in to your assigned course.', 'आपका आवेदन मंज़ूर है। आप अपने तय कोर्स में लॉगिन कर सकते हैं।') : formData.approval_status === 'rejected' ? t('Your application was not approved. Contact the internship team for help.', 'आपका आवेदन मंज़ूर नहीं हुआ है। मदद के लिए इंटर्नशिप टीम से संपर्क करें।') : t('Your request is waiting for admin review. Submitting an application does not enable portal access.', 'आपका आवेदन एडमिन की जाँच का इंतज़ार कर रहा है। सिर्फ़ फॉर्म जमा करने से पढ़ाई का प्रवेश नहीं मिलता।')}</p></section>
         {/* Personal Information */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
@@ -221,7 +225,7 @@ export default function ViewFormPage() {
 }
 
 // Helper component for displaying information fields
-function InfoField({ label, value, fullWidth = false }: { label: string; value: string; fullWidth?: boolean }) {
+function InfoField({ label, value, fullWidth = false }: { label: string; value?: string | null; fullWidth?: boolean }) {
   return (
     <div className={fullWidth ? 'md:col-span-2' : ''}>
       <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>

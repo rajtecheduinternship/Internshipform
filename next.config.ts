@@ -43,7 +43,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; child-src https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;"
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com https://www.youtube.com https://s.ytimg.com; connect-src 'self' https://challenges.cloudflare.com https://www.youtube.com https://googleads.g.doubleclick.net; child-src 'self' https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com; frame-src 'self' https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com; img-src 'self' data: https: https://i.ytimg.com https://img.youtube.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:;"
           }
         ]
       }

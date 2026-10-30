@@ -7,28 +7,19 @@ export interface InternshipFormData {
   dateOfBirth: string;
   address: string;
 
-  // Academic Information
-  internshipTopic: string;
-  course: string;
+  // Academic Information (only college + roll number are collected)
   collegeName: string;
-  honoursSubject: string;
-  currentSemester: string;
-  classRollNo: string;
-  universityName: string;
-  universityRollNumber: string;
-  universityRegistrationNumber: string;
   otherCollegeName?: string;
-  otherCourse?: string;
-  otherHonoursSubject?: string;
+  universityRollNumber: string;
+
+  // Course (id of an admin-defined course)
+  courseId: string;
+  courseTitle?: string;
 
   // Contact Information
   contactNumber: string;
   whatsappNumber?: string;
   emailAddress: string;
-
-  // Files (base64 encoded)
-  photo?: string;
-  signature?: string;
 
   // Declaration
   declarationAccepted: boolean;
@@ -43,15 +34,15 @@ export interface FormSubmission extends InternshipFormData {
 // Dropdown options
 export const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
 
+// Courses offered (active subject papers)
 export const INTERNSHIP_TOPICS = [
+  'Basic IT & Artificial Intelligence',
+  'Basic IT & Tally With GST',
+  'Basic IT & Office Management',
+  'Basic IT & Cyber Security',
   'Master Modern Office Skills',
-  'Basic IT and Digital Skill',
-  'Basic IT and Office Skill',
-  'Basic IT and Artificial Intelligence (AI)',
-  'Basic IT and Printing',
-  'Basic IT and Accounting',
-  'Basic IT and Tally Prime with GST',
-  'Basic IT with Office Management',
+  'AI Tools & Project-based office Tasks',
+  'Digital Skills & Printing',
 ];
 
 export const COURSES = [
@@ -187,3 +178,123 @@ export const SEMESTERS = [
   '7th Semester',
   '8th Semester',
 ];
+
+// ==================== LMS & Video Tracking Types ====================
+
+export interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  role: 'student' | 'admin';
+  avatar_url?: string;
+  college?: string;
+  roll_number?: string;
+  created_at?: string;
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  category: string;
+  thumbnail_url?: string;
+  duration_weeks: number;
+  is_published: boolean;
+  created_at?: string;
+  modules?: ModuleWithVideos[];
+}
+
+export interface Module {
+  id: string;
+  course_id: string;
+  title: string;
+  description?: string;
+  order_index: number;
+  created_at?: string;
+}
+
+export interface Video {
+  id: string;
+  module_id: string;
+  title: string;
+  description?: string;
+  youtube_video_id: string;
+  duration_seconds: number;
+  required_watch_percent: number;
+  order_index: number;
+  is_published: boolean;
+  created_at?: string;
+  progress?: VideoProgress;
+}
+
+export interface ModuleWithVideos extends Module {
+  videos: Video[];
+}
+
+export interface VideoProgress {
+  id?: string;
+  student_id?: string;
+  student_email: string;
+  video_id: string;
+  total_seconds_watched: number;
+  completion_percentage: number;
+  is_completed: boolean;
+  last_watched_position: number;
+  watched_intervals?: [number, number][];
+  completed_at?: string | null;
+  updated_at?: string;
+}
+
+export interface WatchSession {
+  id?: string;
+  student_email: string;
+  video_id: string;
+  start_time?: string;
+  end_time?: string;
+  duration_seconds?: number;
+  ip_address?: string;
+  user_agent?: string;
+}
+
+export interface WatchEvent {
+  id?: string;
+  session_id: string;
+  event_type: 'play' | 'pause' | 'seek' | 'heartbeat' | 'blur' | 'focus' | 'ended';
+  video_time: number;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface Enquiry {
+  id?: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  college?: string;
+  course_interest?: string;
+  message?: string;
+  status?: 'pending' | 'contacted' | 'enrolled' | 'closed';
+  created_at?: string;
+}
+
+export interface DashboardAnalytics {
+  totalStudents: number;
+  totalWatchHours: number;
+  totalCompletions: number;
+  totalEnquiries: number;
+  recentSessions: Array<{
+    id: string;
+    student_email: string;
+    video_title: string;
+    duration_seconds: number;
+    start_time: string;
+  }>;
+  topVideos: Array<{
+    id: string;
+    title: string;
+    total_views: number;
+    completion_rate: number;
+  }>;
+}
