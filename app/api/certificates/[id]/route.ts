@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { isUuid } from '@/lib/lms';
+
+// Certificate verification is public by design (QR on the certificate), so it only
+// returns what is printed on the certificate itself - never DOB, address, phone, e-mail, photo.
+const CERT_APPLICATION_FIELDS = [
+  'student_name', 'father_name', 'college_name', 'course', 'current_semester',
+  'university_roll_number', 'university_registration_number', 'internship_topic',
+] as const;
 
 export async function GET(
   _request: NextRequest,
@@ -7,9 +15,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-
-    if (!id) {
-      return NextResponse.json({ error: 'Certificate ID is required' }, { status: 400 });
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Certificate not found' }, { status: 404 });
     }
 
     const certificate = await db.getCertificateById(id);
@@ -19,12 +26,10 @@ export async function GET(
 
     const application = await db.getApplicationById(certificate.application_id);
     if (!application) {
-      return NextResponse.json({ error: 'Application not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Certificate not found' }, { status: 404 });
     }
 
-    // Strip ip_address before responding
-    const { ip_address, ...publicApplication } = application;
-    void ip_address;
+    const publicApplication = Object.fromEntries(CERT_APPLICATION_FIELDS.map((k) => [k, application[k]]));
 
     return NextResponse.json(
       { success: true, data: { certificate, application: publicApplication } },

@@ -165,7 +165,7 @@ export default function CertificateViewPage() {
   );
 }
 
-function InfoField({ label, value, fullWidth = false }: { label: string; value: string; fullWidth?: boolean }) {
+function InfoField({ label, value, fullWidth = false }: { label: string; value?: string | null; fullWidth?: boolean }) {
   return (
     <div className={fullWidth ? 'md:col-span-2' : ''}>
       <label className="block text-sm font-semibold text-gray-600 mb-1">{label}</label>

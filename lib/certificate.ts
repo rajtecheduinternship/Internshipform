@@ -67,11 +67,20 @@ export async function generateCertificatePDF(input: CertificateInput): Promise<B
       bold: (doc.setFont('helvetica', 'bold'), doc.getTextWidth(' ')),
     };
 
-    const lines: any[] = [];
-    let currentLine: any[] = [];
+    interface FormattedWord {
+      text: string;
+      isBold: boolean;
+      width: number;
+    }
+    interface LineData {
+      elements: FormattedWord[];
+      width: number;
+    }
+    const lines: LineData[] = [];
+    let currentLine: FormattedWord[] = [];
     let currentLineWidth = 0;
 
-    for (let chunk of chunks) {
+    for (const chunk of chunks) {
       if (!chunk) continue;
 
       const isBold = chunk.startsWith('**') && chunk.endsWith('**');
@@ -229,9 +238,9 @@ export async function generateCertificatePDF(input: CertificateInput): Promise<B
   const bodyText =
     `This is to certify that ${salutation} **${application.student_name}** ` +
     (rtsRegNumber ? `Reg. No. **${rtsRegNumber}** ` : ``) +
-    `${relation} ${application.father_name}, student of **${application.current_semester}** at **PATLIPUTRA UNIVERSITY** ` +
+    `${relation} ${application.father_name}, student of ${application.current_semester ? `**${application.current_semester}** ` : ''}at **PATLIPUTRA UNIVERSITY** ` +
     `has interned at our institution for a period of **${durationDays} days**. ` +
-    `Trained with **${application.internship_topic}** for one of our institutions AT **RAJTECH TECHNOLOGICAL SYSTEM ` +
+    `Trained ${application.internship_topic ? `with **${application.internship_topic}** ` : ''}for one of our institutions AT **RAJTECH TECHNOLOGICAL SYSTEM ` +
     `PRIVATE LIMITED** and has achieved the grade **'${grade}'** in the examination. ` +
     `During the period of internship **${firstName}** was found to be efficient, hard working and diligent. ` +
     `We wish ${pronoun} the very best in all ${possessive} future endeavours.`;
@@ -252,8 +261,8 @@ export async function generateCertificatePDF(input: CertificateInput): Promise<B
 
   doc.setFont('helvetica', 'bold');
   doc.text(`${application.university_roll_number}`, 60, gridY);
-  doc.text(`${application.class_roll_no}`, 145, gridY);
-  doc.text(`${application.university_registration_number}`, 60, gridY + 8);
+  doc.text(`${application.class_roll_no || '-'}`, 145, gridY);
+  doc.text(`${application.university_registration_number || '-'}`, 60, gridY + 8);
   doc.text(`${marks}/100`, 60, gridY + 16);
   doc.text(`${formatDateDMY(startDate)} to ${formatDateDMY(endDate)}`, 60, gridY + 24);
 

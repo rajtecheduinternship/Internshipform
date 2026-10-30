@@ -1,28 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { timingSafeEqual } from 'crypto';
+import { requireAdmin } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { uploadCertificatePDF, uploadImagesToStorage } from '@/lib/storage';
 import { calculateGrade, generateCertificatePDF } from '@/lib/certificate';
 
-function safeCompare(a: string, b: string): boolean {
-  try {
-    const bufA = Buffer.from(a.padEnd(Math.max(a.length, b.length)));
-    const bufB = Buffer.from(b.padEnd(Math.max(a.length, b.length)));
-    if (bufA.length !== bufB.length) return false;
-    return timingSafeEqual(bufA, bufB) && a.length === b.length;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
-  // Auth
-  const authHeader = request.headers.get('Authorization');
-  const password = authHeader?.replace('Bearer ', '') ?? '';
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword || !safeCompare(password, adminPassword)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = requireAdmin(request);
+  if (denied) return denied;
 
   let body: Record<string, unknown>;
   try {

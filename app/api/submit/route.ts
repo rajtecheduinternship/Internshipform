@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { InternshipFormData } from '@/lib/types';
-import { uploadImagesToStorage } from '@/lib/storage';
+import { getPublishedCourse } from '@/lib/lms';
 import {
   cleanText,
   containsSpam,
@@ -9,8 +9,6 @@ import {
   isValidEmail,
   validateDropdowns,
   isValidDateOfBirth,
-  isValidPhoto,
-  isValidSignature,
   verifyTurnstileToken,
   isSuspiciousIP,
   recordSuspiciousActivity,
@@ -18,7 +16,7 @@ import {
   isRequestSizeValid,
   MAX_REQUEST_SIZE,
 } from '@/lib/security';
-import { verifyFormToken } from '@/app/api/form-token/route';
+import { verifyFormToken } from '@/lib/form-token';
 import QRCode from 'qrcode';
 
 // Configuration: Use database for rate limiting in production
@@ -136,28 +134,15 @@ function validateFormData(data: InternshipFormData): { valid: boolean; error?: s
     { field: 'gender', label: 'Gender', maxLength: 20 },
     { field: 'dateOfBirth', label: 'Date of Birth', maxLength: 20 },
     { field: 'address', label: 'Address', maxLength: 500 },
-    { field: 'internshipTopic', label: 'Internship Topic', maxLength: 100 },
-    { field: 'course', label: 'Course', maxLength: 50 },
+    { field: 'courseId', label: 'Course', maxLength: 40 },
     { field: 'collegeName', label: 'College Name', maxLength: 200 },
-    { field: 'honoursSubject', label: 'Honours Subject', maxLength: 100 },
-    { field: 'currentSemester', label: 'Current Semester', maxLength: 50 },
-    { field: 'classRollNo', label: 'Class Roll No', maxLength: 50 },
-    { field: 'universityRollNumber', label: 'University Roll Number', maxLength: 50 },
-    { field: 'universityRegistrationNumber', label: 'University Registration Number', maxLength: 50 },
+    { field: 'universityRollNumber', label: 'University / College Roll Number', maxLength: 50 },
     { field: 'contactNumber', label: 'Contact Number', maxLength: 15 },
     { field: 'emailAddress', label: 'Email Address', maxLength: 254 },
   ];
 
-  if (data.course === 'Other') {
-    requiredFields.push({ field: 'otherCourse', label: 'Course (Other)', maxLength: 50 });
-  }
-
   if (data.collegeName === 'Other') {
     requiredFields.push({ field: 'otherCollegeName', label: 'College Name (Other)', maxLength: 200 });
-  }
-
-  if (data.honoursSubject === 'Other') {
-    requiredFields.push({ field: 'otherHonoursSubject', label: 'Honours Subject (Other)', maxLength: 100 });
   }
 
   for (const { field, label, maxLength } of requiredFields) {
@@ -174,11 +159,7 @@ function validateFormData(data: InternshipFormData): { valid: boolean; error?: s
   // Validate dropdown values against allowed options
   const dropdownValidation = validateDropdowns({
     gender: data.gender,
-    internshipTopic: data.internshipTopic,
-    course: data.course,
     collegeName: data.collegeName,
-    honoursSubject: data.honoursSubject,
-    currentSemester: data.currentSemester,
   });
   if (!dropdownValidation.valid) {
     return { valid: false, error: `Invalid ${dropdownValidation.field} selection` };
@@ -210,19 +191,11 @@ function validateFormData(data: InternshipFormData): { valid: boolean; error?: s
   }
 
   // Check for spam content in text fields
-  const textFields = [data.studentName, data.fatherName, data.motherName, data.address];
+  const textFields = [data.studentName, data.fatherName, data.motherName, data.address, data.universityRollNumber];
   for (const text of textFields) {
     if (containsSpam(text)) {
       return { valid: false, error: 'Invalid content detected in form fields' };
     }
-  }
-
-  // Validate file sizes
-  if (!isValidPhoto(data.photo)) {
-    return { valid: false, error: 'Photo must be less than 250KB' };
-  }
-  if (!isValidSignature(data.signature)) {
-    return { valid: false, error: 'Signature must be less than 150KB' };
   }
 
   return { valid: true };
@@ -318,7 +291,7 @@ export async function POST(request: NextRequest) {
 
     // Verify server-side form token (prevents timing spoofing)
     if (data.formToken) {
-      const tokenResult = verifyFormToken(data.formToken, clientIP);
+      const tokenResult = verifyFormToken(data.formToken);
       if (!tokenResult.valid) {
         recordSuspiciousActivity(clientIP);
         return NextResponse.json(
@@ -340,15 +313,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check email cooldown (uses DB in production if configured)
-    const emailResult = await checkEmailCooldown(data.emailAddress);
-    if (!emailResult.allowed) {
-      return NextResponse.json(
-        { error: emailResult.message },
-        { status: 429 }
-      );
-    }
-
     // Validate form data (includes spam detection, file size checks, etc.)
     const validationResult = validateFormData(data);
     if (!validationResult.valid) {
@@ -356,6 +320,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: validationResult.error },
         { status: 400 }
+      );
+    }
+
+    // The chosen course must exist and be published (admin-defined, so checked against the DB)
+    const course = await getPublishedCourse(String(data.courseId));
+    if (!course) {
+      return NextResponse.json({ error: 'Please select a valid course.' }, { status: 400 });
+    }
+
+    // Email cooldown is recorded only after the submission has passed validation,
+    // so a rejected form (e.g. no course chosen) does not lock the student out for 30 minutes.
+    const emailResult = await checkEmailCooldown(data.emailAddress);
+    if (!emailResult.allowed) {
+      return NextResponse.json(
+        { error: emailResult.message },
+        { status: 429 }
       );
     }
 
@@ -379,22 +359,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload images to Supabase Storage (if present)
-    // This stores images in the 'internship-files' bucket and returns public URLs
-    let photoUrl: string | undefined;
-    let signatureUrl: string | undefined;
+    // Phone number is the portal user ID, so it must be unique
+    const existingPhone = await db.findByPhone(data.contactNumber);
 
-    if (data.photo || data.signature) {
-      const { photoUrl: pUrl, signatureUrl: sUrl } = await uploadImagesToStorage(
-        data.photo || undefined,
-        data.signature || undefined,
-        data.universityRollNumber
+    if (existingPhone) {
+      return NextResponse.json(
+        { error: 'An application with this phone number already exists.' },
+        { status: 409 }
       );
-      photoUrl = pUrl;
-      signatureUrl = sUrl;
     }
 
-    // Sanitize text inputs before storing
+    const collegeName = data.collegeName === 'Other' && data.otherCollegeName
+      ? cleanText(data.otherCollegeName, 200)
+      : data.collegeName;
+    const rollNumber = cleanText(data.universityRollNumber, 50);
+
     const { error: insertError, id: formId } = await db.insertApplication({
       student_name: cleanText(data.studentName, 100),
       father_name: cleanText(data.fatherName, 100),
@@ -402,20 +381,14 @@ export async function POST(request: NextRequest) {
       gender: data.gender,
       date_of_birth: data.dateOfBirth,
       address: cleanText(data.address, 500),
-      internship_topic: data.internshipTopic,
-      course: data.course === 'Other' && data.otherCourse ? cleanText(data.otherCourse, 50) : data.course,
-      college_name: data.collegeName === 'Other' && data.otherCollegeName ? cleanText(data.otherCollegeName, 200) : data.collegeName,
-      honours_subject: data.honoursSubject === 'Other' && data.otherHonoursSubject ? cleanText(data.otherHonoursSubject, 100) : data.honoursSubject,
-      current_semester: data.currentSemester,
-      class_roll_no: cleanText(data.classRollNo, 50),
-      university_name: data.universityName,
-      university_roll_number: cleanText(data.universityRollNumber, 50),
-      university_registration_number: cleanText(data.universityRegistrationNumber, 50),
+      internship_topic: course.title,
+      course_id: course.id,
+      college_name: collegeName,
+      university_name: 'Patliputra University',
+      university_roll_number: rollNumber,
       contact_number: data.contactNumber,
       whatsapp_number: data.whatsappNumber || undefined,
       email_address: data.emailAddress.toLowerCase().trim(),
-      photo: photoUrl || undefined, // Store URL instead of base64
-      signature: signatureUrl || undefined, // Store URL instead of base64
       ip_address: clientIP,
       created_at: new Date().toISOString(),
     });
@@ -427,6 +400,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Admission is decided by an admin. No profile or credentials are provisioned here.
 
     // Generate QR code for the form view URL
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
@@ -451,10 +426,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: 'Application submitted successfully!',
+        message: 'Application received. Admin approval is required before portal access.',
+        approvalStatus: 'pending',
         formId,
         formViewUrl,
-        qrCode: qrCodeDataUrl
+        qrCode: qrCodeDataUrl,
       },
       { status: 200 }
     );
