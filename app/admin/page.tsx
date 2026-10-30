@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Icon, IconName } from '@/components/icons';
-import { useDialogFocus } from '@/components/ui';
+import { ConfirmDialog, useDialogFocus } from '@/components/ui';
 import JSZip from 'jszip';
 import CoursesManager from '@/components/admin/CoursesManager';
 import StudentsManager from '@/components/admin/StudentsManager';
@@ -66,6 +66,9 @@ export default function AdminPage() {
   const detailsDialogRef = useDialogFocus(Boolean(selectedSubmission), () => setSelectedSubmission(null));
   const [searchTerm, setSearchTerm] = useState('');
   const [approvalFilter, setApprovalFilter] = useState<'all' | ApprovalStatus>('pending');
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState('');
 
   // Tab & Extended Admin state
   type AdminTab = 'analytics' | 'applications' | 'enquiries' | 'news' | 'courses' | 'students' | 'questions';
@@ -504,6 +507,31 @@ export default function AdminPage() {
   ];
   const current = TABS.find((item) => item.key === activeTab)!;
   const selectTab = (key: AdminTab) => { setActiveTab(key); setMenuOpen(false); if (key === 'news') fetchNews(); };
+  async function approveAllPending() {
+    setBulkConfirm(false); setBulkBusy(true); setBulkMsg('');
+    let approved = 0;
+    const failed: { id: string; name: string; reason: string }[] = [];
+    try {
+      // The server approves in batches; keep calling until nothing is left (failed ones are skipped).
+      for (;;) {
+        const res = await fetch('/api/admin/submissions/approve-all', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skipIds: failed.map((f) => f.id) }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'failed');
+        approved += data.approved; failed.push(...data.failed);
+        setBulkMsg(copy(`Approved ${approved} so far…`, `अब तक ${approved} मंज़ूर…`));
+        if (!data.remaining) break;
+      }
+      setBulkMsg(failed.length
+        ? copy(`Approved ${approved}. ${failed.length} need a look: ${failed.slice(0, 5).map((f) => `${f.name} (${f.reason})`).join(', ')}${failed.length > 5 ? '…' : ''}`, `${approved} मंज़ूर। ${failed.length} को जाँचें: ${failed.slice(0, 5).map((f) => f.name).join(', ')}`)
+        : copy(`Approved ${approved} applications.`, `${approved} आवेदन मंज़ूर हो गए।`));
+    } catch {
+      setBulkMsg(copy(`Stopped after approving ${approved}. Check your connection and try again.`, `${approved} मंज़ूर होने के बाद रुक गया। इंटरनेट जाँचें और फिर कोशिश करें।`));
+    } finally { setBulkBusy(false); fetchSubmissions(); }
+  }
+
   const refresh = () => { fetchSubmissions(); fetchAnalytics(); fetchEnquiries(); refreshOpenQuestions(); if (activeTab === 'news') fetchNews(); setRefreshKey((key) => key + 1); };
 
   return (
@@ -765,7 +793,8 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="ui-card ui-card-pad mb-6"><h2 className="ui-h2">{copy('Admission requests', 'प्रवेश के आवेदन')}</h2><p className="ui-muted mt-2">{copy(`${pendingCount} ${pendingCount === 1 ? 'application is' : 'applications are'} waiting for your decision. Open View details to approve or reject.`, `${pendingCount} आवेदन आपके फ़ैसले का इंतज़ार कर रहे हैं। मंज़ूर या नामंज़ूर करने के लिए जानकारी देखें।`)}</p><div className="flex flex-wrap gap-2 mt-4" role="group" aria-label={copy('Filter by admission status', 'प्रवेश की स्थिति के अनुसार चुनें')}>{(['pending', 'approved', 'rejected', 'all'] as const).map((status) => <button key={status} className={`ui-btn ui-btn-sm ${approvalFilter === status ? 'ui-btn-primary' : ''}`} aria-pressed={approvalFilter === status} onClick={() => setApprovalFilter(status)}>{status === 'pending' ? copy('Pending', 'मंज़ूरी बाकी') : status === 'approved' ? copy('Approved', 'मंज़ूर') : status === 'rejected' ? copy('Rejected', 'नामंज़ूर') : copy('All applications', 'सभी आवेदन')} <span className="tnum">{status === 'all' ? submissions.length : submissions.filter((s) => (s.approval_status || 'pending') === status).length}</span></button>)}</div></div>
+        <div className="ui-card ui-card-pad mb-6"><h2 className="ui-h2">{copy('Admission requests', 'प्रवेश के आवेदन')}</h2><p className="ui-muted mt-2">{copy(`${pendingCount} ${pendingCount === 1 ? 'application is' : 'applications are'} waiting for your decision. Open View details to approve or reject.`, `${pendingCount} आवेदन आपके फ़ैसले का इंतज़ार कर रहे हैं। मंज़ूर या नामंज़ूर करने के लिए जानकारी देखें।`)}</p><div className="flex flex-wrap gap-2 mt-4" role="group" aria-label={copy('Filter by admission status', 'प्रवेश की स्थिति के अनुसार चुनें')}>{(['pending', 'approved', 'rejected', 'all'] as const).map((status) => <button key={status} className={`ui-btn ui-btn-sm ${approvalFilter === status ? 'ui-btn-primary' : ''}`} aria-pressed={approvalFilter === status} onClick={() => setApprovalFilter(status)}>{status === 'pending' ? copy('Pending', 'मंज़ूरी बाकी') : status === 'approved' ? copy('Approved', 'मंज़ूर') : status === 'rejected' ? copy('Rejected', 'नामंज़ूर') : copy('All applications', 'सभी आवेदन')} <span className="tnum">{status === 'all' ? submissions.length : submissions.filter((s) => (s.approval_status || 'pending') === status).length}</span></button>)}</div>{pendingCount > 0 && <div className="mt-4 flex flex-wrap items-center gap-3"><button className="ui-btn ui-btn-primary" disabled={bulkBusy} onClick={() => setBulkConfirm(true)}>{bulkBusy ? copy('Approving…', 'मंज़ूर हो रहे हैं…') : copy(`Approve all pending (${pendingCount})`, `सभी बाकी आवेदन मंज़ूर करें (${pendingCount})`)}</button></div>}{bulkMsg && <p role="status" className="ui-muted mt-3">{bulkMsg}</p>}</div>
+        {bulkConfirm && <ConfirmDialog tone="brand" title={copy('Approve all pending applications?', 'सभी बाकी आवेदन मंज़ूर करें?')} body={<p>{copy(`${pendingCount} students will be able to sign in with their phone number and roll number. Rejected applications are not affected.`, `${pendingCount} छात्र अपने मोबाइल नंबर और रोल नंबर से लॉगिन कर सकेंगे। नामंज़ूर आवेदन नहीं बदलेंगे।`)}</p>} confirmLabel={copy('Approve all', 'सभी मंज़ूर करें')} onCancel={() => setBulkConfirm(false)} onConfirm={approveAllPending} />}
         {/* Search */}
         <div className="mb-6">
           <input
