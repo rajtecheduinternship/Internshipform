@@ -20,17 +20,23 @@ export function validateClass(raw: Record<string, unknown>) {
 }
 export async function saveClass(raw: Record<string, unknown>, id?: string) {
   if (id && !isUuid(id)) throw new LearningError('Invalid class.', 404);
-  const d = validateClass(raw);
-  const db = getPgPool();
-  const applicable = await db.query(`SELECT 1 FROM courses c WHERE c.id=$1 AND ($2::uuid IS NULL OR EXISTS (
-    SELECT 1 FROM modules m WHERE m.id=$2 AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=m.id))))`, [d.course_id, d.module_id]);
-  if (!applicable.rowCount) throw new LearningError('The module must belong to the selected course.');
-  const values = Object.values(d);
-  const result = id
-    ? await db.query(`UPDATE live_classes SET course_id=$1,module_id=$2,title=$3,description=$4,meet_url=$5,starts_at=$6,ends_at=$7,is_published=$8,is_cancelled=$9 WHERE id=$10 RETURNING *`, [...values, id])
-    : await db.query(`INSERT INTO live_classes(course_id,module_id,title,description,meet_url,starts_at,ends_at,is_published,is_cancelled) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`, values);
-  if (!result.rows[0]) throw new LearningError('Class not found.', 404);
-  return result.rows[0];
+  const d = validateClass(raw); const db = await getPgPool().connect();
+  try {
+    await db.query('BEGIN');
+    if (id) {
+      const old = (await db.query('SELECT course_id,module_id,starts_at FROM live_classes WHERE id=$1 FOR UPDATE', [id])).rows[0];
+      if (!old) throw new LearningError('Class not found.', 404);
+      if ((old.course_id !== d.course_id || old.module_id !== d.module_id || +old.starts_at !== +new Date(d.starts_at)) && (await db.query('SELECT 1 FROM class_attendance WHERE class_id=$1 LIMIT 1', [id])).rowCount) throw new LearningError('The course, module and start time cannot be changed after attendance activity. Create a new class instead.', 409);
+    }
+    const applicable = await db.query(`SELECT 1 FROM courses c WHERE c.id=$1 AND ($2::uuid IS NULL OR EXISTS (
+      SELECT 1 FROM modules m WHERE m.id=$2 AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=m.id))))`, [d.course_id, d.module_id]);
+    if (!applicable.rowCount) throw new LearningError('The module must belong to the selected course.');
+    const values = Object.values(d);
+    const result = id
+      ? await db.query(`UPDATE live_classes SET course_id=$1,module_id=$2,title=$3,description=$4,meet_url=$5,starts_at=$6,ends_at=$7,is_published=$8,is_cancelled=$9 WHERE id=$10 RETURNING *`, [...values, id])
+      : await db.query(`INSERT INTO live_classes(course_id,module_id,title,description,meet_url,starts_at,ends_at,is_published,is_cancelled) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`, values);
+    await db.query('COMMIT'); return result.rows[0];
+  } catch (e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
 }
 export async function listClasses(courseId?: string | null) {
   if (courseId !== undefined && !isUuid(courseId)) return [];

@@ -9,6 +9,7 @@ const { setup, load } = require('./lms-test-harness.cjs');
     const { pool, lms, root } = h;
     await pool.query(fs.readFileSync(path.join(root, 'migrations/012_live_classes.sql'), 'utf8'));
     await pool.query(fs.readFileSync(path.join(root, 'migrations/012_live_classes.sql'), 'utf8'));
+    await pool.query(fs.readFileSync(path.join(root,'migrations/015_class_attendance.sql'),'utf8'));
     const errors = load('lib/learning-errors.ts');
     const classes = load('lib/live-classes.ts', { ...h.mocks, '@/lib/lms': lms, '@/lib/learning-errors': errors });
     const calendar = load('lib/class-calendar.ts');

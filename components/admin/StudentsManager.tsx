@@ -1,6 +1,7 @@
 'use client';
 
 import { useAdminDraft, useAdminNavigation } from './UnsavedChanges';
+import StudentAttendance from './StudentAttendance';
 import ExamResults from './ExamResults';
 import LoadingState from '@/components/LoadingState';
 
@@ -239,7 +240,7 @@ function EditStudent({ id, profile, onSaved }: { id: string; profile: Detail['pr
 function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; courses: CourseOpt[]; onClose: () => void; onChanged: () => void }) {
   const t = useAdminCopy();
   const copy = useCopy(); const { canLeave } = useAdminNavigation();
-  const [view, setView] = useState<'profile' | 'learning' | 'exams'>('profile');
+  const [view, setView] = useState<'profile' | 'learning' | 'exams' | 'attendance'>('profile');
   const close = () => { if (canLeave()) onClose(); };
   const { lang } = useLang();
   const [d, setD] = useState<Detail | null>(null);
@@ -276,7 +277,7 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
         {!d && !error && <LoadingState />}
         {d && (
           <>
-            <nav className="admin-view-tabs" aria-label={copy('Student record areas', 'छात्र रिकॉर्ड के भाग')}>{([['profile','Profile','प्रोफ़ाइल'],['learning','Learning Progress','पढ़ाई की प्रगति'],['exams','Examinations','परीक्षाएँ']] as const).map(([key,en,hi]) => <button key={key} className={`ui-btn ${view === key ? 'ui-btn-primary' : ''}`} aria-current={view === key ? 'page' : undefined} onClick={() => { if (canLeave()) setView(key); }}>{copy(en,hi)}</button>)}</nav>
+            <nav className="admin-view-tabs" aria-label={copy('Student record areas', 'छात्र रिकॉर्ड के भाग')}>{([['profile','Profile','प्रोफ़ाइल'],['learning','Learning Progress','पढ़ाई की प्रगति'],['exams','Examinations','परीक्षाएँ'],['attendance','Attendance','उपस्थिति']] as const).map(([key,en,hi]) => <button key={key} className={`ui-btn ${view === key ? 'ui-btn-primary' : ''}`} aria-current={view === key ? 'page' : undefined} onClick={() => { if (canLeave()) setView(key); }}>{copy(en,hi)}</button>)}</nav>
             {view === 'profile' && <>
             <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-[13px] min-[480px]:grid-cols-2">
               <Field label={t("Phone")} value={d.profile.phone} />
@@ -298,6 +299,7 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
             </div>
 
             </>}
+            {view === 'attendance' && <StudentAttendance studentId={id} />}
             {view === 'exams' && <ExamResults key={`exams-${id}`} studentId={id} />}
             {view === 'learning' && (d.course ? (
               <>
