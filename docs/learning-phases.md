@@ -33,6 +33,8 @@ Do not run migrations against production automatically.
 - Publish/unpublish/cancel/edit, explicit start/end, stored as UTC timestamps.
 - Student calendar/agenda and bilingual notice board, scoped to their course and
   module publication. Course-only classes do not depend on module completion.
+- Public notice board shows a generic bilingual sign-in announcement when an
+  upcoming class is published; it never exposes Meet links or course/student IDs.
 - Links appear only to authenticated enrolled students. No public Meet links.
 - Classes/attendance do not change video completion.
 
