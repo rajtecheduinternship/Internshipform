@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (b.description !== undefined) patch.description = cleanText(String(b.description), 2000);
   if (b.category !== undefined) patch.category = cleanText(String(b.category), 80);
   if (b.thumbnail_url !== undefined) patch.thumbnail_url = safeUrl(b.thumbnail_url);
-  if (b.duration_weeks !== undefined) patch.duration_weeks = clampInt(b.duration_weeks, 1, 52, 4);
+  if (b.duration_weeks !== undefined) patch.duration_weeks = clampInt(b.duration_weeks, 1, 52, 5);
   if (b.duration_hours !== undefined) patch.duration_hours = clampInt(b.duration_hours, 1, 1000, 90);
   if (b.is_published !== undefined) patch.is_published = Boolean(b.is_published);
   if (Object.keys(patch).length) await adminUpdateCourse(id, patch);

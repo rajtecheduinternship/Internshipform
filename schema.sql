@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS courses (
   description TEXT,
   category TEXT DEFAULT 'IT & Software',
   thumbnail_url TEXT,
-  duration_weeks INTEGER DEFAULT 4,
+  duration_weeks INTEGER DEFAULT 5,
   duration_hours INTEGER DEFAULT 90,
   is_published BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
