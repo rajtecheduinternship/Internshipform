@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:completion": "node scripts/test-completion.cjs",
+    "test:classes": "node scripts/test-live-classes.cjs",
+    "test:exams": "node scripts/test-exams.cjs",
+    "test:lms": "npm run test:completion && npm run test:classes && npm run test:exams",
+    "test:learning-ui": "node scripts/test-learning-ui.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.997.0",

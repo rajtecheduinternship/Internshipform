@@ -39,7 +39,7 @@ export async function listClasses(courseId?: string | null) {
     ${courseId === undefined ? '' : `WHERE lc.course_id=$1 AND c.is_published AND lc.is_published
       AND (lc.module_id IS NULL OR (m.is_published AND (m.is_mandatory OR EXISTS (
         SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=m.id))))`}
-    ORDER BY lc.starts_at DESC LIMIT 1000`, courseId === undefined ? [] : [courseId]);
+    ORDER BY lc.starts_at DESC`, courseId === undefined ? [] : [courseId]);
   return result.rows as LiveClass[];
 }
 

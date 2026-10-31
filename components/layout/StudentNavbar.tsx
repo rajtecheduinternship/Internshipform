@@ -36,6 +36,7 @@ export default function StudentNavbar() {
 
   const links: { href: string; label: string; icon: IconName; active: boolean }[] = [
     { href: '/portal/videos', label: t('My learning', 'मेरी पढ़ाई'), icon: 'book', active: pathname.startsWith('/portal/videos') || pathname.startsWith('/portal/watch') },
+    { href: '/portal/exams', label: t('Examinations', 'परीक्षाएँ'), icon: 'book', active: pathname.startsWith('/portal/exams') },
     { href: '/portal/classes', label: t('Online classes', 'ऑनलाइन कक्षाएँ'), icon: 'clock', active: pathname === '/portal/classes' },
     { href: '/portal/profile', label: t('My progress', 'मेरी प्रगति'), icon: 'chart', active: pathname === '/portal/profile' },
     { href: '/portal/account', label: t('My account', 'मेरा खाता'), icon: 'user', active: pathname === '/portal/account' },

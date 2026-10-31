@@ -17,6 +17,7 @@ const course = { id: 'course-1', title: 'Office & digital skills', slug: 'office
 const notices = [1, 2, 3].map((n) => ({ id: `notice-${n}`, message: `Notice ${n}: ${'Important internship information for students. '.repeat(6)}`, link_url: '/courses', is_active: true, sort_order: n, created_at: '2026-10-30T10:00:00Z' }));
 const student = { ...profile, course_title: course.title, completed_videos: 0, total_videos: 2, watch_seconds: 0, last_activity: null, last_login_at: null };
 const fixtures = {
+  '/api/portal/classes': { classes: [] }, '/api/portal/exams': { exams: [] },
   '/api/news': notices, '/api/courses': { courses: [course] }, '/api/portal/me': { profile }, '/api/portal/questions': { questions: [] },
   '/api/videos/lesson-1': { video }, '/api/admin/verify': { authenticated: true }, '/api/admin/submissions': { submissions: [] },
   '/api/admin/analytics': { recentSessions: [] }, '/api/admin/questions': { questions: [] },

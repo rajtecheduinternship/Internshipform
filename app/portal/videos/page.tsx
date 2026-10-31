@@ -1,5 +1,7 @@
 'use client';
 
+import ExamLinks from '@/components/exams/ExamLinks';
+import { useExams } from '@/hooks/useExams';
 import StudentClasses from '@/components/classes/StudentClasses';
 import LoadingState from '@/components/LoadingState';
 
@@ -21,6 +23,7 @@ const thumbFor = (v: Video & { thumbnail_url?: string | null }) =>
 export default function VideoLibraryPage() {
   const t = useCopy();
   const student = useStudent();
+  const examination = useExams(!!student);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -62,6 +65,7 @@ export default function VideoLibraryPage() {
         </div>
 
         {student && <StudentClasses />}
+        {examination.error && <p role="alert">{t('Examinations could not load.', 'परीक्षाएँ नहीं खुलीं।')} <button className="ui-link" onClick={examination.reload}>{t('Retry', 'फिर कोशिश करें')}</button></p>}
         {loading ? <LoadingState label={t('Loading your course', 'आपका कोर्स लोड हो रहा है')} /> : error ? (
           <div className="ui-card ui-card-pad space-y-4"><ErrorNote>{t('Your lessons could not load. Check your connection and try again.', 'पाठ नहीं खुल पाए। इंटरनेट जाँचें और फिर कोशिश करें।')}</ErrorNote><button onClick={load} className="ui-btn">{t('Try again', 'फिर कोशिश करें')}</button></div>
         ) : !course ? (
@@ -91,18 +95,20 @@ export default function VideoLibraryPage() {
                 {course.description && <p className="ui-muted">{course.description}</p>}
                 {all.length > 0 && <div className="lesson-toolbar"><div role="group" aria-label={t('Filter lessons', 'पाठ चुनें')} className="lesson-filters">{(['all', 'remaining', 'completed'] as const).map((f) => <button key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f === 'all' ? t('All lessons', 'सभी पाठ') : f === 'remaining' ? t('To watch', 'बाकी पाठ') : t('Completed', 'पूरे हुए')}</button>)}</div><input className="ui-field" type="search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t('Search lessons', 'पाठ खोजें')} placeholder={t('Find a lesson…', 'पाठ खोजें…')} /></div>}
                 {all.length > 0 && !hasResults && <div className="ui-card"><Empty title={t('No lessons match', 'कोई पाठ नहीं मिला')}>{t('Try a different search or show all lessons.', 'कुछ और खोजें या सभी पाठ देखें।')}<div className="mt-3"><button className="ui-btn" onClick={() => { setQuery(''); setFilter('all'); }}>{t('Show all lessons', 'सभी पाठ देखें')}</button></div></Empty></div>}
-                {(hasResults || !all.length) && modules.map((mod, mIdx) => {
-                  if (all.length && !mod.videos.length) return null;
+                {modules.map((mod, mIdx) => {
                   const original = course.modules?.find((m) => m.id === mod.id)?.videos || [];
+                  const moduleExams = examination.exams.filter((e) => e.module_id === mod.id);
+                  if (!mod.videos.length && !moduleExams.length && (query.trim() || filter !== 'all' || original.length > 0)) return null;
                   const completedCount = original.filter((v) => v.progress?.is_completed).length;
                   return (
                     <details key={mod.id} className="module-card" open>
-                      <summary><span className="module-number">{String(mIdx + 1).padStart(2, '0')}</span><span className="min-w-0 flex-1"><strong>{mod.title}</strong><small>{completedCount}/{original.length} {t('completed', 'पाठ पूरे')}{(mod as { is_mandatory?: boolean }).is_mandatory ? ` · ${t('For all students', 'सभी छात्रों के लिए')}` : ''}</small></span><Icon name="chevron" size={18} /></summary>
+                      <summary><span className="module-number">{String(mIdx + 1).padStart(2, '0')}</span><span className="min-w-0 flex-1"><strong>{mod.title}</strong><small>{original.length ? `${completedCount}/${original.length} ${t('completed', 'पाठ पूरे')}` : t('Lessons pending', 'पाठ आने बाकी हैं')}{(mod as { is_mandatory?: boolean }).is_mandatory ? ` · ${t('For all students', 'सभी छात्रों के लिए')}` : ''}</small></span><Icon name="chevron" size={18} /></summary>
                       {!mod.videos.length ? <p className="ui-muted p-5">{t('Lessons will be added here soon.', 'पाठ जल्द यहाँ जोड़े जाएँगे।')}</p> : <ul>{mod.videos.map((v, i) => {
                         const completed = !!v.progress?.is_completed;
                         const c = Number(v.progress?.completion_percentage || 0);
                         return <li key={v.id}><Link href={`/portal/watch/${v.id}`} className={`lesson-row ${next?.id === v.id ? 'next-lesson' : ''}`}><span className={`lesson-state ${completed ? 'is-complete' : ''}`}>{completed ? <Icon name="check" size={18} /> : <Icon name="play" size={15} />}</span><Thumb src={thumbFor(v)} w={88} h={52} /><span className="min-w-0 flex-1"><strong>{v.title}</strong><span className="lesson-meta"><Icon name="clock" size={13} />{formatDuration(v.duration_seconds)}{next?.id === v.id && <span className="next-label">{t('Your next lesson', 'आपका अगला पाठ')}</span>}</span>{!completed && c > 0 && <span className="block mt-2 max-w-48"><Progress value={c} label={v.title} /></span>}</span><span className="lesson-status">{completed ? <Badge tone="ok">{t('Completed', 'पूरा हुआ')}</Badge> : c > 0 ? <span className="ui-muted">{Math.round(c)}%</span> : <span className="lesson-index">{String(i + 1).padStart(2, '0')}</span>}</span><Icon name="chevron" size={16} /></Link></li>;
                       })}</ul>}
+                      <ExamLinks exams={moduleExams} />
                     </details>
                   );
                 })}
