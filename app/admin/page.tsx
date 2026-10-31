@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Icon, IconName } from '@/components/icons';
-import { ConfirmDialog, useDialogFocus } from '@/components/ui';
+import { Badge, ConfirmDialog, useDialogFocus } from '@/components/ui';
 import JSZip from 'jszip';
 import CoursesManager from '@/components/admin/CoursesManager';
 import StudentsManager from '@/components/admin/StudentsManager';
@@ -214,6 +214,8 @@ export default function AdminPage() {
     }
   }
 
+  const [dupFlags, setDupFlags] = useState<Record<string, number>>({});
+  const [dupOnly, setDupOnly] = useState(false);
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
@@ -223,6 +225,7 @@ export default function AdminPage() {
       if (response.ok) {
         const data = await response.json();
         setSubmissions(data.submissions || []);
+        fetch('/api/admin/submissions/duplicate-flags', { cache: 'no-store' }).then((r) => r.ok ? r.json() : { flags: {} }).then((d) => setDupFlags(d.flags || {})).catch(() => {});
       } else {
         setAuthError('Failed to fetch submissions');
       }
@@ -462,7 +465,7 @@ export default function AdminPage() {
   };
 
   const pendingCount = submissions.filter((s) => (s.approval_status || 'pending') === 'pending').length;
-  const filteredSubmissions = submissions.filter(s => (approvalFilter === 'all' || (s.approval_status || 'pending') === approvalFilter) && (
+  const filteredSubmissions = submissions.filter(s => (approvalFilter === 'all' || (s.approval_status || 'pending') === approvalFilter) && (!dupOnly || !!dupFlags[s.id!]) && (
     s.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.email_address.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.contact_number.includes(searchTerm) ||
@@ -818,7 +821,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="ui-card ui-card-pad mb-6"><h2 className="ui-h2">{copy('Admission requests', 'प्रवेश के आवेदन')}</h2><p className="ui-muted mt-2">{copy(`${pendingCount} ${pendingCount === 1 ? 'application is' : 'applications are'} waiting for your decision. Open View details to approve or reject.`, `${pendingCount} आवेदन आपके फ़ैसले का इंतज़ार कर रहे हैं। मंज़ूर या नामंज़ूर करने के लिए जानकारी देखें।`)}</p><div className="flex flex-wrap gap-2 mt-4" role="group" aria-label={copy('Filter by admission status', 'प्रवेश की स्थिति के अनुसार चुनें')}>{(['pending', 'approved', 'rejected', 'all'] as const).map((status) => <button key={status} className={`ui-btn ui-btn-sm ${approvalFilter === status ? 'ui-btn-primary' : ''}`} aria-pressed={approvalFilter === status} onClick={() => setApprovalFilter(status)}>{status === 'pending' ? copy('Pending', 'मंज़ूरी बाकी') : status === 'approved' ? copy('Approved', 'मंज़ूर') : status === 'rejected' ? copy('Rejected', 'नामंज़ूर') : copy('All applications', 'सभी आवेदन')} <span className="tnum">{status === 'all' ? submissions.length : submissions.filter((s) => (s.approval_status || 'pending') === status).length}</span></button>)}</div>{pendingCount > 0 && <div className="mt-4 flex flex-wrap items-center gap-3"><button className="ui-btn ui-btn-primary" disabled={bulkBusy} onClick={() => setBulkConfirm(true)}>{bulkBusy ? copy('Approving…', 'मंज़ूर हो रहे हैं…') : copy(`Approve all pending (${pendingCount})`, `सभी बाकी आवेदन मंज़ूर करें (${pendingCount})`)}</button></div>}{bulkMsg && <p role="status" className="ui-muted mt-3">{bulkMsg}</p>}</div>
+        <div className="ui-card ui-card-pad mb-6"><h2 className="ui-h2">{copy('Admission requests', 'प्रवेश के आवेदन')}</h2><p className="ui-muted mt-2">{copy(`${pendingCount} ${pendingCount === 1 ? 'application is' : 'applications are'} waiting for your decision. Open View details to approve or reject.`, `${pendingCount} आवेदन आपके फ़ैसले का इंतज़ार कर रहे हैं। मंज़ूर या नामंज़ूर करने के लिए जानकारी देखें।`)}</p><div className="flex flex-wrap gap-2 mt-4" role="group" aria-label={copy('Filter by admission status', 'प्रवेश की स्थिति के अनुसार चुनें')}>{(['pending', 'approved', 'rejected', 'all'] as const).map((status) => <button key={status} className={`ui-btn ui-btn-sm ${approvalFilter === status ? 'ui-btn-primary' : ''}`} aria-pressed={approvalFilter === status} onClick={() => setApprovalFilter(status)}>{status === 'pending' ? copy('Pending', 'मंज़ूरी बाकी') : status === 'approved' ? copy('Approved', 'मंज़ूर') : status === 'rejected' ? copy('Rejected', 'नामंज़ूर') : copy('All applications', 'सभी आवेदन')} <span className="tnum">{status === 'all' ? submissions.length : submissions.filter((s) => (s.approval_status || 'pending') === status).length}</span></button>)}</div>{Object.keys(dupFlags).length > 0 && <div className="mt-4"><button className={`ui-btn ui-btn-sm ${dupOnly ? 'ui-btn-primary' : ''}`} aria-pressed={dupOnly} onClick={() => { setDupOnly(!dupOnly); setApprovalFilter('pending'); }}>{copy(`Possible duplicates only (${Object.keys(dupFlags).length})`, `सिर्फ़ संभावित डुप्लिकेट (${Object.keys(dupFlags).length})`)}</button></div>}{pendingCount > 0 && <div className="mt-4 flex flex-wrap items-center gap-3"><button className="ui-btn ui-btn-primary" disabled={bulkBusy} onClick={() => setBulkConfirm(true)}>{bulkBusy ? copy('Approving…', 'मंज़ूर हो रहे हैं…') : copy(`Approve all pending (${pendingCount})`, `सभी बाकी आवेदन मंज़ूर करें (${pendingCount})`)}</button></div>}{bulkMsg && <p role="status" className="ui-muted mt-3">{bulkMsg}</p>}</div>
         {bulkConfirm && <ConfirmDialog tone="brand" title={copy('Approve all pending applications?', 'सभी बाकी आवेदन मंज़ूर करें?')} body={<p>{copy(`${pendingCount} students will be able to sign in with their phone number and roll number. Rejected applications are not affected.`, `${pendingCount} छात्र अपने मोबाइल नंबर और रोल नंबर से लॉगिन कर सकेंगे। नामंज़ूर आवेदन नहीं बदलेंगे।`)}</p>} confirmLabel={copy('Approve all', 'सभी मंज़ूर करें')} onCancel={() => setBulkConfirm(false)} onConfirm={approveAllPending} />}
         {/* Search */}
         <div className="mb-6">
@@ -853,7 +856,7 @@ export default function AdminPage() {
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-800 truncate">#{index + 1} {submission.student_name}</div><span className="inline-block mt-2"><ApplicationStatus status={submission.approval_status} /></span>
+                        <div className="font-medium text-gray-800 truncate">#{index + 1} {submission.student_name}</div><span className="inline-block mt-2"><ApplicationStatus status={submission.approval_status} />{dupFlags[submission.id!] ? <span className="ml-2"><Badge tone="warn">{copy(`Possible duplicate (${dupFlags[submission.id!]})`, `संभावित डुप्लिकेट (${dupFlags[submission.id!]})`)}</Badge></span> : null}</span>
                         <div className="text-sm text-gray-500 truncate">{submission.email_address}</div>
                       </div>
                       <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full flex-shrink-0 ml-2">
@@ -912,7 +915,7 @@ export default function AdminPage() {
                       <tr key={submission.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm text-gray-500">{index + 1}</td>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-gray-800">{submission.student_name}</div><span className="inline-block mt-2"><ApplicationStatus status={submission.approval_status} /></span>
+                          <div className="font-medium text-gray-800">{submission.student_name}</div><span className="inline-block mt-2"><ApplicationStatus status={submission.approval_status} />{dupFlags[submission.id!] ? <span className="ml-2"><Badge tone="warn">{copy(`Possible duplicate (${dupFlags[submission.id!]})`, `संभावित डुप्लिकेट (${dupFlags[submission.id!]})`)}</Badge></span> : null}</span>
                           <div className="text-sm text-gray-500">{submission.email_address}</div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-800">{submission.father_name}</td>

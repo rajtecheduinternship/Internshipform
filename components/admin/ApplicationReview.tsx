@@ -7,6 +7,7 @@ import type { ApprovalStatus } from '@/lib/db';
 import { Badge, ConfirmDialog, ErrorNote } from '@/components/ui';
 import { useCopy } from '@/components/help/i18n';
 import { Icon } from '@/components/icons';
+import DuplicateMatches from '@/components/admin/DuplicateMatches';
 
 export function ApplicationStatus({ status }: { status?: ApprovalStatus }) {
   const t = useCopy();
@@ -43,6 +44,7 @@ export default function ApplicationReview({ application, onReviewed }: {
   return <section className="ui-card ui-card-pad space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="ui-h2">{t('Admission decision', 'प्रवेश का फ़ैसला')}</h3><ApplicationStatus status={application.approval_status} /></div>
     <p className="ui-muted">{application.approval_status === 'approved' ? t('Portal access is enabled. Rejecting this application will revoke access, including existing sessions.', 'छात्र पेज का प्रवेश चालू है। आवेदन नामंज़ूर करने पर प्रवेश बंद होगा और चल रहे लॉगिन भी काम नहीं करेंगे।') : t('This student cannot use the learning portal until you approve this application. Approval creates their account for the assigned course.', 'आपकी मंज़ूरी के बिना यह छात्र पढ़ाई का पेज इस्तेमाल नहीं कर सकता। मंज़ूरी पर तय कोर्स के लिए उसका खाता बनेगा।')}</p>
+    {application.approval_status !== 'approved' && <DuplicateMatches applicationId={application.id} />}
     {application.review_note && <p className="ui-muted whitespace-pre-wrap"><strong>{t('Review note:', 'फ़ैसले का नोट:')}</strong> {application.review_note}</p>}
     {application.reviewed_at && <p className="ui-muted">{t('Last reviewed:', 'आख़िरी जाँच:')} {new Date(application.reviewed_at).toLocaleString('en-IN')}</p>}
     {error && <ErrorNote>{error}</ErrorNote>}

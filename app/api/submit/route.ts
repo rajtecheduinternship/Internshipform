@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { InternshipFormData } from '@/lib/types';
-import { getPublishedCourse } from '@/lib/lms';
+import { getApplicableCourse } from '@/lib/lms';
 import {
   cleanText,
   containsSpam,
@@ -17,6 +17,7 @@ import {
   MAX_REQUEST_SIZE,
 } from '@/lib/security';
 import { verifyFormToken } from '@/lib/form-token';
+import { findDuplicates } from '@/lib/duplicates';
 import QRCode from 'qrcode';
 
 // Configuration: Use database for rate limiting in production
@@ -259,7 +260,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    let data: InternshipFormData & { turnstileToken?: string; formToken?: string };
+    let data: InternshipFormData & { turnstileToken?: string; formToken?: string; confirmNotDuplicate?: boolean };
     try {
       data = await request.json();
     } catch {
@@ -324,9 +325,37 @@ export async function POST(request: NextRequest) {
     }
 
     // The chosen course must exist and be published (admin-defined, so checked against the DB)
-    const course = await getPublishedCourse(String(data.courseId));
+    const course = await getApplicableCourse(String(data.courseId));
     if (!course) {
       return NextResponse.json({ error: 'Please select a valid course.' }, { status: 400 });
+    }
+
+    // Already registered? Compare normalised phone, email, roll number and name + father's name.
+    // Exact contact matches are blocked; a name match is only a warning the student can confirm.
+    const duplicates = await findDuplicates({
+      studentName: data.studentName, fatherName: data.fatherName, dateOfBirth: data.dateOfBirth,
+      phone: data.contactNumber, email: data.emailAddress, roll: data.universityRollNumber,
+    });
+    const exact = duplicates.find((d) => d.level === 'exact');
+    if (exact) {
+      return NextResponse.json(
+        {
+          code: 'ALREADY_REGISTERED',
+          error: 'You are already registered. Please sign in to the portal instead of filling this form again.',
+          phoneHint: exact.contact_number.replace(/\D/g, '').slice(-2),
+        },
+        { status: 409 }
+      );
+    }
+    if (duplicates.length && !data.confirmNotDuplicate) {
+      return NextResponse.json(
+        {
+          code: 'POSSIBLE_DUPLICATE',
+          error: 'A student with the same name and father\'s name is already registered. Please try signing in first.',
+          phoneHint: duplicates[0].contact_number.replace(/\D/g, '').slice(-2),
+        },
+        { status: 409 }
+      );
     }
 
     // Email cooldown is recorded only after the submission has passed validation,
@@ -336,36 +365,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: emailResult.message },
         { status: 429 }
-      );
-    }
-
-    // Check for duplicate email in database
-    const existingSubmission = await db.findByEmail(data.emailAddress);
-
-    if (existingSubmission) {
-      return NextResponse.json(
-        { error: 'An application with this email already exists. Please use a different email.' },
-        { status: 409 }
-      );
-    }
-
-    // Check for duplicate university roll number
-    const existingRollNumber = await db.findByRollNumber(data.universityRollNumber);
-
-    if (existingRollNumber) {
-      return NextResponse.json(
-        { error: 'An application with this university roll number already exists.' },
-        { status: 409 }
-      );
-    }
-
-    // Phone number is the portal user ID, so it must be unique
-    const existingPhone = await db.findByPhone(data.contactNumber);
-
-    if (existingPhone) {
-      return NextResponse.json(
-        { error: 'An application with this phone number already exists.' },
-        { status: 409 }
       );
     }
 
