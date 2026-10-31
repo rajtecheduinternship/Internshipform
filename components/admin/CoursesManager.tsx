@@ -158,7 +158,7 @@ const L = ({ label, children }: { label: string; children: ReactNode }) => <div>
 
 function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | null; allModules: ModuleSummary[]; onClose: () => void; onChanged: () => void }) {
   const t = useAdminCopy();
-  const [f, setF] = useState({ title: '', description: '', thumbnail_url: '', duration_weeks: '4', duration_hours: '90' });
+  const [f, setF] = useState({ title: '', description: '', thumbnail_url: '', duration_weeks: '5', duration_hours: '90' });
   const [attached, setAttached] = useState<string[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [courseId, setCourseId] = useState(id);
@@ -168,14 +168,14 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
   useEffect(() => {
     if (!id) return;
     api<{ course: Course & { modules: { id: string }[] } }>(`/api/admin/courses/${id}`).then((d) => {
-      setF({ title: d.course.title, description: d.course.description || '', thumbnail_url: d.course.thumbnail_url || '', duration_weeks: String(d.course.duration_weeks || 4), duration_hours: String(d.course.duration_hours || 90) });
+      setF({ title: d.course.title, description: d.course.description || '', thumbnail_url: d.course.thumbnail_url || '', duration_weeks: String(d.course.duration_weeks || 5), duration_hours: String(d.course.duration_hours || 90) });
       setAttached(d.course.modules.map((m) => m.id));
     }).catch((e) => setMsg({ ok: false, t: e.message })).finally(() => setLoading(false));
   }, [id]);
 
   const saveDetails = async () => {
     setSaving(true);
-    const body = { ...f, duration_weeks: Number(f.duration_weeks) || 4, duration_hours: Number(f.duration_hours) || 90 };
+    const body = { ...f, duration_weeks: Number(f.duration_weeks) || 5, duration_hours: Number(f.duration_hours) || 90 };
     try {
       if (courseId) await api(`/api/admin/courses/${courseId}`, 'PATCH', body);
       else { const r = await api<{ course: { id: string } }>('/api/admin/courses', 'POST', body); setCourseId(r.course.id); }

@@ -317,7 +317,7 @@ export async function adminCreateCourse(d: { title: string; description?: string
   const r = await pool().query(
     `INSERT INTO courses (title, slug, description, category, thumbnail_url, duration_weeks, duration_hours, is_published)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [d.title, slug, d.description || '', d.category || 'Internship', d.thumbnail_url || null, d.duration_weeks ?? 4, d.duration_hours ?? 90, d.is_published !== false]
+    [d.title, slug, d.description || '', d.category || 'Internship', d.thumbnail_url || null, d.duration_weeks ?? 5, d.duration_hours ?? 90, d.is_published !== false]
   );
   return r.rows[0];
 }

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     description: cleanText(String(b?.description || ''), 2000),
     category: cleanText(String(b?.category || ''), 80) || undefined,
     thumbnail_url: safeUrl(b?.thumbnail_url),
-    duration_weeks: clampInt(b?.duration_weeks, 1, 52, 4),
+    duration_weeks: clampInt(b?.duration_weeks, 1, 52, 5),
     duration_hours: clampInt(b?.duration_hours, 1, 1000, 90),
     is_published: b?.is_published !== false,
   });
