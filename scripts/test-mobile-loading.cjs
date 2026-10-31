@@ -17,13 +17,14 @@ const course = { id: 'course-1', title: 'Office & digital skills', slug: 'office
 const notices = [1, 2, 3].map((n) => ({ id: `notice-${n}`, message: `Notice ${n}: ${'Important internship information for students. '.repeat(6)}`, link_url: '/courses', is_active: true, sort_order: n, created_at: '2026-10-30T10:00:00Z' }));
 const student = { ...profile, course_title: course.title, completed_videos: 0, total_videos: 2, watch_seconds: 0, last_activity: null, last_login_at: null };
 const fixtures = {
+  '/api/portal/classes': { classes: [] }, '/api/portal/exams': { exams: [] },
   '/api/news': notices, '/api/courses': { courses: [course] }, '/api/portal/me': { profile }, '/api/portal/questions': { questions: [] },
   '/api/videos/lesson-1': { video }, '/api/admin/verify': { authenticated: true }, '/api/admin/submissions': { submissions: [] },
   '/api/admin/analytics': { recentSessions: [] }, '/api/admin/questions': { questions: [] },
   '/api/admin/overview': { totals: { students: 1, unassigned: 0, active7d: 0, watchSeconds: 0, enquiries: 1 }, courses: [], daily: [] },
   '/api/admin/courses': { courses: [course] }, '/api/admin/courses/course-1': { course },
   '/api/admin/modules': { modules: [moduleFixture] }, '/api/admin/modules/module-1': { module: moduleFixture },
-  '/api/admin/students': { students: [student] }, '/api/admin/students/student-1': { profile, course },
+  '/api/admin/students': { students: [student] }, '/api/admin/students/student-1': { profile, course }, '/api/admin/students/student-1/exams': { results: [] },
   '/api/admin/news': notices, '/api/enquiries': { enquiries: [{ id: 'enquiry-1', full_name: 'Interested Student', phone: profile.phone, email: profile.email, course_interest: course.title, college: profile.college, message: 'How can I start learning?', created_at: '2026-10-30T10:00:00Z' }] },
   '/api/form-token': { token: 'test-only' }, '/api/tracking/session': { session_id: 'test-session' },
 };

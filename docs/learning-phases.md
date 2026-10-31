@@ -50,6 +50,9 @@ Do not run migrations against production automatically.
 - Do not send keys before submission (or after it by default); published exams
   cannot be edited, preserving fairness. Unpublish hides/stops access; republishing
   retains attempts and deadlines, never resets them. Use a new exam for a retake.
+- Admin answer-sheet review uses the saved shuffled snapshot and shows marking
+  per question. Scores remain private until individually/bulk released; future
+  submissions stay private. Student progress shows appearance and released marks.
 - Copy/context-menu deterrents and visibility-change logging are not proctoring.
   Screenshots, external devices and searching cannot be reliably prevented.
 - Exams are reported separately from video completion; failed exams do not erase
