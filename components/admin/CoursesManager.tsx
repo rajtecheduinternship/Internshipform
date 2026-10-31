@@ -12,7 +12,7 @@ import { Badge, ConfirmDialog, Drawer, Empty, ErrorNote, Thumb } from '@/compone
 
 interface Course {
   id: string; title: string; description: string | null; category: string | null; thumbnail_url: string | null;
-  duration_weeks: number | null; is_published: boolean; module_count: number; student_count: number;
+  duration_weeks: number | null; duration_hours: number | null; is_published: boolean; module_count: number; student_count: number;
 }
 interface ModuleSummary {
   id: string; title: string; description: string | null; thumbnail_url: string | null; video_count: number; is_mandatory: boolean;
@@ -85,7 +85,7 @@ export default function CoursesManager() {
                     <Badge tone={c.is_published ? 'ok' : undefined}>{c.is_published ? t("Published") : t("Hidden")}</Badge>
                   </div>
                   <p className="ui-muted line-clamp-2" style={{ minHeight: '2.4em' }}>{c.description || t("No description yet.")}</p>
-                  <div className="ui-muted tnum">{c.module_count} {t("modules ·")} {c.student_count} {t("students")}{c.duration_weeks ? ` · ${c.duration_weeks} wk` : ''}</div>
+                  <div className="ui-muted tnum">{c.module_count} {t("modules ·")} {c.student_count} {t("students")}{c.duration_weeks ? ` · ${c.duration_weeks} wk` : ''}{c.duration_hours ? ` · ${c.duration_hours} hrs` : ''}</div>
                   <div className="mt-auto flex flex-wrap gap-2 pt-2">
                     <button className="ui-btn ui-btn-sm" onClick={() => setEditCourse(c.id)}>{t("Edit & modules")}</button>
                     <button className="ui-btn ui-btn-sm" onClick={() => run(() => api(`/api/admin/courses/${c.id}`, 'PATCH', { is_published: !c.is_published }))}>
@@ -158,7 +158,7 @@ const L = ({ label, children }: { label: string; children: ReactNode }) => <div>
 
 function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | null; allModules: ModuleSummary[]; onClose: () => void; onChanged: () => void }) {
   const t = useAdminCopy();
-  const [f, setF] = useState({ title: '', description: '', thumbnail_url: '', duration_weeks: 4 });
+  const [f, setF] = useState({ title: '', description: '', thumbnail_url: '', duration_weeks: '4', duration_hours: '90' });
   const [attached, setAttached] = useState<string[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [courseId, setCourseId] = useState(id);
@@ -168,16 +168,17 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
   useEffect(() => {
     if (!id) return;
     api<{ course: Course & { modules: { id: string }[] } }>(`/api/admin/courses/${id}`).then((d) => {
-      setF({ title: d.course.title, description: d.course.description || '', thumbnail_url: d.course.thumbnail_url || '', duration_weeks: d.course.duration_weeks || 4 });
+      setF({ title: d.course.title, description: d.course.description || '', thumbnail_url: d.course.thumbnail_url || '', duration_weeks: String(d.course.duration_weeks || 4), duration_hours: String(d.course.duration_hours || 90) });
       setAttached(d.course.modules.map((m) => m.id));
     }).catch((e) => setMsg({ ok: false, t: e.message })).finally(() => setLoading(false));
   }, [id]);
 
   const saveDetails = async () => {
     setSaving(true);
+    const body = { ...f, duration_weeks: Number(f.duration_weeks) || 4, duration_hours: Number(f.duration_hours) || 90 };
     try {
-      if (courseId) await api(`/api/admin/courses/${courseId}`, 'PATCH', f);
-      else { const r = await api<{ course: { id: string } }>('/api/admin/courses', 'POST', f); setCourseId(r.course.id); }
+      if (courseId) await api(`/api/admin/courses/${courseId}`, 'PATCH', body);
+      else { const r = await api<{ course: { id: string } }>('/api/admin/courses', 'POST', body); setCourseId(r.course.id); }
       setMsg({ ok: true, t: 'Saved' }); onChanged();
     } catch (e) { setMsg({ ok: false, t: (e as Error).message }); } finally { setSaving(false); }
   };
@@ -204,9 +205,10 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
         <div className="space-y-3">
           <L label={t("Course name")}><input className="ui-field" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></L>
           <L label={t("Description")}><textarea className="ui-field" rows={3} placeholder={t("What does this course cover?")} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></L>
-          <div className="grid grid-cols-[1fr_120px] gap-3">
-            <L label={t("Thumbnail URL (https)")}><input className="ui-field" value={f.thumbnail_url} onChange={(e) => setF({ ...f, thumbnail_url: e.target.value })} /></L>
-            <L label={t("Weeks")}><input className="ui-field" type="number" min={1} max={52} value={f.duration_weeks} onChange={(e) => setF({ ...f, duration_weeks: Number(e.target.value) })} /></L>
+          <L label={t("Thumbnail URL (https)")}><input className="ui-field" value={f.thumbnail_url} onChange={(e) => setF({ ...f, thumbnail_url: e.target.value })} /></L>
+          <div className="grid grid-cols-2 gap-3">
+            <L label={t("Weeks")}><input className="ui-field" type="number" min={1} max={52} value={f.duration_weeks} onChange={(e) => setF({ ...f, duration_weeks: e.target.value })} /></L>
+            <L label={t("Total hours")}><input className="ui-field" type="number" min={1} max={1000} value={f.duration_hours} onChange={(e) => setF({ ...f, duration_hours: e.target.value })} /></L>
           </div>
           <button className="ui-btn ui-btn-primary" disabled={!f.title.trim()} onClick={saveDetails}>{saving ? <BusyText>{t("Saving…")}</BusyText> : courseId ? t("Save details") : t("Create course")}</button>
         </div>

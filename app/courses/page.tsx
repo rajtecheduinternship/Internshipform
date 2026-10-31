@@ -17,7 +17,7 @@ export default function CoursesPage() {
     {
       id: 'office-skills',
       title: 'Master Modern Office Skills',
-      duration: '4 Weeks / 60 Hours',
+      duration: '4 Weeks / 90 Hours',
       level: 'All Streams (B.A., B.Sc., B.Com.)',
       description: 'Create documents, work with spreadsheets, make presentations, and collaborate with your team online.',
       syllabus: [
@@ -32,7 +32,7 @@ export default function CoursesPage() {
     {
       id: 'basic-it-digital',
       title: 'Basic IT and Digital Skill',
-      duration: '4 Weeks / 60 Hours',
+      duration: '4 Weeks / 90 Hours',
       level: 'Computer basics',
       description: 'Learn computer basics, browse safely, manage files, and use everyday digital services.',
       syllabus: [
@@ -47,7 +47,7 @@ export default function CoursesPage() {
     {
       id: 'basic-it-ai',
       title: 'Basic IT and Artificial Intelligence (AI)',
-      duration: '4 Weeks / 60 Hours',
+      duration: '4 Weeks / 90 Hours',
       level: 'AI tools for everyday work',
       description: 'Give AI tools clear instructions and use them to help with research, documents, images, and routine tasks.',
       syllabus: [
@@ -62,7 +62,7 @@ export default function CoursesPage() {
     {
       id: 'tally-gst',
       title: 'Basic IT and Tally Prime with GST',
-      duration: '4 Weeks / 60 Hours',
+      duration: '4 Weeks / 90 Hours',
       level: 'Commerce & Accounting Focus',
       description: 'Learn accounts, business entries, GST invoices, and reports using Tally Prime.',
       syllabus: [
@@ -77,7 +77,7 @@ export default function CoursesPage() {
     {
       id: 'office-management',
       title: 'Basic IT with Office Management',
-      duration: '4 Weeks / 60 Hours',
+      duration: '4 Weeks / 90 Hours',
       level: 'Everyday office work',
       description: 'Organise meetings, track tasks, manage records, and communicate clearly at work.',
       syllabus: [
@@ -92,7 +92,7 @@ export default function CoursesPage() {
     {
       id: 'printing-accounting',
       title: 'Basic IT and Printing / Accounting',
-      duration: '4 Weeks / 60 Hours',
+      duration: '4 Weeks / 90 Hours',
       level: 'Printing & practical projects',
       description: 'Create print layouts, scan documents, design receipts, and keep simple business records.',
       syllabus: [
@@ -116,7 +116,7 @@ export default function CoursesPage() {
   ];
   return <div className="ui-page public-page"><PublicNavbar /><NewsTicker /><main className="portal-main space-y-7"><div className="page-heading"><div><div className="ui-eyebrow">{t('COURSES & SYLLABUS', 'कोर्स और पाठ्यक्रम')}</div><h1>{t('What would you like to learn?', 'आप क्या सीखना चाहेंगे?')}</h1><p>{t('Explore the programme outlines below. Ask our team about the courses currently open for applications.', 'नीचे कोर्स की जानकारी देखें। अभी किन कोर्स में आवेदन हो रहे हैं, यह हमारी टीम से पूछें।')}</p></div><Link href="/enquiry" className="ui-btn">{t('Help me choose', 'चुनने में मदद करें')}<Icon name="message" size={17} /></Link></div>
     <nav className="course-jump-links" aria-label={t('Jump to a course', 'कोर्स पर जाएँ')}>{tracks.map((course, i) => <a key={course.id} href={`#${course.id}`}>{lang === 'hi' ? hindi[i].title : course.title}</a>)}</nav>
-    {tracks.map((course, i) => <section id={course.id} key={course.id} className="ui-card overflow-hidden scroll-mt-28"><div className="ui-card-head"><div className="flex items-center gap-3"><span className="module-number">{String(i + 1).padStart(2, '0')}</span><h2 className="ui-h2">{lang === 'hi' ? hindi[i].title : course.title}</h2></div><Badge tone="brand">{lang === 'hi' ? hindi[i].level : course.level}</Badge></div><div className="course-detail-grid"><div className="ui-card-pad"><p className="text-sm leading-7" style={{ color: 'var(--ink-2)' }}>{lang === 'hi' ? hindi[i].description : course.description}</p><div className="flex items-center gap-2 mt-5 text-sm"><Icon name="clock" size={17} />{t(course.duration, '4 हफ़्ते / 60 घंटे')}</div><div className="flex flex-wrap gap-2 mt-5">{course.topics.map((topic) => <Badge key={topic}>{topic}</Badge>)}</div><Link href="/apply" className="ui-btn ui-btn-primary mt-6">{t('Apply for this programme', 'इस कार्यक्रम का फॉर्म भरें')}<Icon name="arrow" size={17} /></Link></div><MobileDisclosure className="ui-card-pad course-syllabus" title={t('What you’ll learn · View syllabus', 'आप क्या सीखेंगे · पाठ्यक्रम देखें')}><ol className="mt-4 space-y-3">{course.syllabus.map((item, index) => <li key={item} className="flex items-start gap-3"><span className="text-xs font-semibold mt-1" style={{ color: 'var(--brand)' }}>{String(index + 1).padStart(2, '0')}</span><span className="text-sm leading-7">{lang === 'hi' ? hindi[i].syllabus[index] : item.replace(/^Module \d+: /, '')}</span></li>)}</ol></MobileDisclosure></div></section>)}
+    {tracks.map((course, i) => <section id={course.id} key={course.id} className="ui-card overflow-hidden scroll-mt-28"><div className="ui-card-head"><div className="flex items-center gap-3"><span className="module-number">{String(i + 1).padStart(2, '0')}</span><h2 className="ui-h2">{lang === 'hi' ? hindi[i].title : course.title}</h2></div><Badge tone="brand">{lang === 'hi' ? hindi[i].level : course.level}</Badge></div><div className="course-detail-grid"><div className="ui-card-pad"><p className="text-sm leading-7" style={{ color: 'var(--ink-2)' }}>{lang === 'hi' ? hindi[i].description : course.description}</p><div className="flex items-center gap-2 mt-5 text-sm"><Icon name="clock" size={17} />{t(course.duration, '4 हफ़्ते / 90 घंटे')}</div><div className="flex flex-wrap gap-2 mt-5">{course.topics.map((topic) => <Badge key={topic}>{topic}</Badge>)}</div><Link href="/apply" className="ui-btn ui-btn-primary mt-6">{t('Apply for this programme', 'इस कार्यक्रम का फॉर्म भरें')}<Icon name="arrow" size={17} /></Link></div><MobileDisclosure className="ui-card-pad course-syllabus" title={t('What you’ll learn · View syllabus', 'आप क्या सीखेंगे · पाठ्यक्रम देखें')}><ol className="mt-4 space-y-3">{course.syllabus.map((item, index) => <li key={item} className="flex items-start gap-3"><span className="text-xs font-semibold mt-1" style={{ color: 'var(--brand)' }}>{String(index + 1).padStart(2, '0')}</span><span className="text-sm leading-7">{lang === 'hi' ? hindi[i].syllabus[index] : item.replace(/^Module \d+: /, '')}</span></li>)}</ol></MobileDisclosure></div></section>)}
     <p className="ui-muted">{t('Your assigned course and published lessons appear in your student portal after admin approval. Confirm your college’s internship requirements with your coordinator.', 'एडमिन की मंज़ूरी के बाद आपका कोर्स और प्रकाशित पाठ छात्र पेज पर दिखेंगे। अपने कॉलेज की इंटर्नशिप की शर्तें शिक्षक से पक्की कर लें।')}</p>
   </main><Footer /></div>;
 }

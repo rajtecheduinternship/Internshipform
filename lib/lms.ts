@@ -13,6 +13,7 @@ export interface CourseRow {
   category: string | null;
   thumbnail_url: string | null;
   duration_weeks: number | null;
+  duration_hours: number | null;
   is_published: boolean;
 }
 
@@ -46,9 +47,9 @@ export { isUuid };
 export const CLOSED_FOR_NEW_APPLICATIONS: readonly string[] = ['accounting-tally-with-gst', 'it-sector', 'office-administration'];
 
 /** Published courses for the application form dropdown / public catalogue. */
-export async function listPublishedCourses(): Promise<Pick<CourseRow, 'id' | 'title' | 'slug' | 'description' | 'thumbnail_url' | 'duration_weeks' | 'category'>[]> {
+export async function listPublishedCourses(): Promise<Pick<CourseRow, 'id' | 'title' | 'slug' | 'description' | 'thumbnail_url' | 'duration_weeks' | 'duration_hours' | 'category'>[]> {
   const r = await pool().query(
-    `SELECT id, title, slug, description, thumbnail_url, duration_weeks, category
+    `SELECT id, title, slug, description, thumbnail_url, duration_weeks, duration_hours, category
        FROM courses WHERE is_published = true AND NOT (slug = ANY($1::text[])) ORDER BY title ASC`,
     [CLOSED_FOR_NEW_APPLICATIONS]
   );
@@ -309,22 +310,22 @@ export async function adminGetCourse(id: string) {
   return { ...c.rows[0], modules: m.rows };
 }
 
-export async function adminCreateCourse(d: { title: string; description?: string; category?: string; thumbnail_url?: string | null; duration_weeks?: number; is_published?: boolean }) {
+export async function adminCreateCourse(d: { title: string; description?: string; category?: string; thumbnail_url?: string | null; duration_weeks?: number; duration_hours?: number; is_published?: boolean }) {
   let slug = slugify(d.title);
   const taken = await pool().query(`SELECT 1 FROM courses WHERE slug = $1`, [slug]);
   if (taken.rowCount) slug = `${slug}-${Date.now().toString(36)}`;
   const r = await pool().query(
-    `INSERT INTO courses (title, slug, description, category, thumbnail_url, duration_weeks, is_published)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [d.title, slug, d.description || '', d.category || 'Internship', d.thumbnail_url || null, d.duration_weeks ?? 4, d.is_published !== false]
+    `INSERT INTO courses (title, slug, description, category, thumbnail_url, duration_weeks, duration_hours, is_published)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [d.title, slug, d.description || '', d.category || 'Internship', d.thumbnail_url || null, d.duration_weeks ?? 4, d.duration_hours ?? 90, d.is_published !== false]
   );
   return r.rows[0];
 }
 
-export async function adminUpdateCourse(id: string, d: Partial<{ title: string; description: string; category: string; thumbnail_url: string | null; duration_weeks: number; is_published: boolean }>) {
+export async function adminUpdateCourse(id: string, d: Partial<{ title: string; description: string; category: string; thumbnail_url: string | null; duration_weeks: number; duration_hours: number; is_published: boolean }>) {
   const fields: string[] = [];
   const vals: unknown[] = [];
-  for (const k of ['title', 'description', 'category', 'thumbnail_url', 'duration_weeks', 'is_published'] as const) {
+  for (const k of ['title', 'description', 'category', 'thumbnail_url', 'duration_weeks', 'duration_hours', 'is_published'] as const) {
     if (d[k] !== undefined) { vals.push(d[k]); fields.push(`${k} = $${vals.length}`); }
   }
   if (!fields.length) return null;
