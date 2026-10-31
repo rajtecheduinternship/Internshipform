@@ -41,7 +41,7 @@ export default function VideoLibraryPage() {
   const course = courses[0];
   const all = course?.modules?.flatMap((m) => m.videos || []) || [];
   const done = all.filter((v) => v.progress?.is_completed).length;
-  const pct = all.length ? Math.round((done / all.length) * 100) : 0;
+  const pct = course?.completion?.percentage ?? 0;
   const next = all.find((v) => !v.progress?.is_completed && (v.progress?.completion_percentage || 0) > 0) || all.find((v) => !v.progress?.is_completed);
   const modules = course?.modules?.map((mod) => ({ ...mod, videos: (mod.videos || []).filter((v) =>
     `${v.title} ${mod.title}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) &&

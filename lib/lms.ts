@@ -1,3 +1,4 @@
+import { summarizeCompletion } from '@/lib/completion';
 import { getPgPool } from '@/lib/db';
 import { Interval, mergeIntervals, calculateUniqueSecondsWatched } from '@/lib/tracking';
 
@@ -99,7 +100,7 @@ export async function getStudentCourse(courseId: string | null | undefined, stud
     [courseId, studentId]
   );
 
-  const byModule = new Map<string, unknown[]>();
+  const byModule = new Map<string, VideoRow[]>();
   for (const row of vids.rows) {
     const progress = row.total_seconds_watched === null || row.total_seconds_watched === undefined
       ? null
@@ -118,15 +119,14 @@ export async function getStudentCourse(courseId: string | null | undefined, stud
     byModule.set(video.module_id, list);
   }
 
-  return {
-    ...course,
-    modules: mods.rows.map((m) => ({ ...m, videos: byModule.get(m.id) || [] })),
-  };
+  const modules = mods.rows.map((m) => ({ ...m, videos: byModule.get(m.id) || [] }));
+  const completion = summarizeCompletion(modules);
+  return { ...course, completion, modules: modules.map((m, i) => ({ ...m, completion: completion.modules[i] })) };
 }
 
 /** A video the student is allowed to watch (in their course, published, not archived). */
 export async function getVideoForStudent(videoId: string, courseId: string | null | undefined, studentId: string) {
-  if (!isUuid(videoId) || !courseId) return null;
+  if (!isUuid(videoId) || !courseId || !await getPublishedCourse(courseId)) return null;
   const r = await pool().query(
     `SELECT v.id, v.module_id, v.title, v.description, v.youtube_video_id, v.thumbnail_url,
             v.duration_seconds, v.required_watch_percent, v.order_index, v.is_published,
@@ -158,7 +158,7 @@ export async function getVideoForStudent(videoId: string, courseId: string | nul
 
 /** Access check + the facts the server needs to validate progress. */
 export async function getVideoAccessMeta(videoId: string, courseId: string | null | undefined) {
-  if (!isUuid(videoId) || !courseId) return null;
+  if (!isUuid(videoId) || !courseId || !await getPublishedCourse(courseId)) return null;
   const r = await pool().query(
     `SELECT v.id, v.duration_seconds, v.required_watch_percent
        FROM videos v JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $2))
@@ -209,11 +209,13 @@ export async function saveProgress(args: {
   const client = await pool().connect();
   try {
     await client.query('BEGIN');
+    // Serialize even the FIRST heartbeat: SELECT FOR UPDATE alone cannot lock a missing row.
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`${args.studentId}:${video.id}`]);
     const existing = await client.query(
       `SELECT watched_intervals, total_seconds_watched, is_completed, completed_at,
               EXTRACT(EPOCH FROM (NOW() - updated_at)) AS idle_secs
-         FROM video_progress WHERE student_email = $1 AND video_id = $2 FOR UPDATE`,
-      [args.studentEmail, video.id]
+         FROM video_progress WHERE student_id = $1 AND video_id = $2 FOR UPDATE`,
+      [args.studentId, video.id]
     );
     const prev = existing.rows[0];
     const prevIntervals = prev ? sanitizeIntervals(prev.watched_intervals, duration) : [];
@@ -232,7 +234,7 @@ export async function saveProgress(args: {
     }
 
     const pct = Math.min(100, Math.round((seconds / duration) * 10000) / 100);
-    const completed = Boolean(prev?.is_completed) || pct >= video.required_watch_percent;
+    const completed = Boolean(prev?.is_completed) || seconds * 100 >= duration * video.required_watch_percent;
     const position = Math.min(duration, Math.max(0, Math.floor(Number(args.position) || 0)));
 
     const res = await client.query(
@@ -240,8 +242,8 @@ export async function saveProgress(args: {
          student_id, student_email, video_id, total_seconds_watched, completion_percentage,
          is_completed, last_watched_position, watched_intervals, completed_at, updated_at
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8, CASE WHEN $6 THEN NOW() END, NOW())
-       ON CONFLICT (student_email, video_id) DO UPDATE SET
-         student_id = EXCLUDED.student_id,
+       ON CONFLICT (student_id, video_id) DO UPDATE SET
+         student_email = EXCLUDED.student_email,
          total_seconds_watched = GREATEST(video_progress.total_seconds_watched, EXCLUDED.total_seconds_watched),
          completion_percentage = GREATEST(video_progress.completion_percentage, EXCLUDED.completion_percentage),
          is_completed = video_progress.is_completed OR EXCLUDED.is_completed,
@@ -506,7 +508,7 @@ export async function adminListStudents() {
          SELECT COUNT(*) FILTER (WHERE vp.is_completed) AS completed_videos,
                 SUM(vp.total_seconds_watched) AS watch_seconds, MAX(vp.updated_at) AS last_activity
            FROM video_progress vp
-           JOIN videos v ON v.id = vp.video_id AND v.archived_at IS NULL
+           JOIN videos v ON v.id = vp.video_id AND v.is_published AND v.archived_at IS NULL
            JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = p.course_id))
           WHERE vp.student_id = p.id
        ) pr ON true
@@ -616,7 +618,7 @@ export async function adminOverview() {
               (SELECT COUNT(*) FROM videos v JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = c.id))
                  WHERE v.is_published AND v.archived_at IS NULL)::int AS videos,
               COALESCE((SELECT COUNT(*) FROM video_progress vp JOIN profiles p ON p.id = vp.student_id
-                 JOIN videos v ON v.id = vp.video_id AND v.archived_at IS NULL AND v.is_published
+                 JOIN videos v ON v.id = vp.video_id AND v.is_published AND v.archived_at IS NULL
                  JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = c.id))
                  WHERE p.course_id = c.id AND vp.is_completed), 0)::int AS completions,
               (SELECT COUNT(DISTINCT vp.student_id) FROM video_progress vp JOIN profiles p ON p.id = vp.student_id
