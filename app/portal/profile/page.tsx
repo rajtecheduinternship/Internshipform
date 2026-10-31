@@ -1,5 +1,6 @@
 'use client';
 
+import StudentAttendance from '@/components/classes/StudentAttendance';
 import StudentExamRecord from '@/components/exams/StudentExamRecord';
 import LoadingState from '@/components/LoadingState';
 
@@ -48,6 +49,6 @@ export default function StudentProfilePage() {
           return <li key={v.id}><Link className="lesson-row" href={`/portal/watch/${v.id}`}><span className={`lesson-state ${v.progress?.is_completed ? 'is-complete' : ''}`}><Icon name={v.progress?.is_completed ? 'check' : 'play'} size={18} /></span><span className="min-w-0 flex-1"><strong>{v.title}</strong><span className="block mt-2 max-w-64"><Progress value={c} done={v.progress?.is_completed} label={v.title} /></span><span className="lesson-meta">{formatDuration(v.progress?.total_seconds_watched || 0)} {t('watched', 'देखा गया')}</span></span>{v.progress?.is_completed ? <Badge tone="ok">{t('Completed', 'पूरा हुआ')}</Badge> : <span className="ui-muted">{Math.round(c)}%</span>}<Icon name="chevron" size={16} /></Link></li>;
         })}</ul>{!mod.videos?.length && <p className="ui-muted p-5">{t('Lessons will appear here soon.', 'पाठ जल्द यहाँ दिखेंगे।')}</p>}</section>)}
       </>}
-    <StudentExamRecord enabled={!!student} /></main><PortalFooter /></div>
+    <StudentExamRecord enabled={!!student} /><StudentAttendance enabled={!!student} /></main><PortalFooter /></div>
   );
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { learningErrorResponse } from '@/lib/learning-errors';
 import { requireAdmin } from '@/lib/auth';
 import { adminDeleteModule, adminGetModule, adminReorderVideos, adminSetModuleCourses, adminUpdateModule, isUuid } from '@/lib/lms';
 import { cleanText } from '@/lib/security';
@@ -48,6 +49,11 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   const denied = requireAdmin(req);
   if (denied) return denied;
   const { id } = await params;
-  if (!isUuid(id) || !(await adminDeleteModule(id))) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json({ success: true });
+  try {
+    if (!isUuid(id) || !(await adminDeleteModule(id))) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    if ((e as { code?: string }).code === '23503') return NextResponse.json({ error: 'Attendance history must be retained. Unpublish this module instead of deleting it.' }, { status: 409 });
+    return learningErrorResponse(e);
+  }
 }

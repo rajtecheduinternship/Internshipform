@@ -23,7 +23,8 @@ let attempt = null;
       let data = {};
       const body = r.postData() && r.headers()['content-type']?.includes('application/json') ? r.postDataJSON() : null;
       if (r.method() !== 'GET') writes.push({ path, method: r.method(), body });
-      if (path.endsWith('/attempt')) {
+      if (path === '/api/portal/attendance') data = { attendance: [] };
+      else if (path.endsWith('/attempt')) {
         if (r.method() === 'POST' && !attempt) attempt = { id: 'attempt', questions: [{ id: q, prompt: 'What is 2 + 2?', options: ['3', '4'] }], answers: {}, deadline_at: new Date(Date.now() + 900000).toISOString(), submitted_at: null, score_percent: null };
         if (r.method() === 'PATCH' && attempt) attempt.answers = { ...attempt.answers, ...body.answers };
         if (r.method() === 'PUT' && attempt) attempt = { ...attempt, answers: body.answers, submitted_at: new Date().toISOString(), correct_count: 1, score_percent: 100, passed: true };

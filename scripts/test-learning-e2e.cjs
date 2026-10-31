@@ -14,7 +14,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r,ms));
   try {
     const { pool, root } = h;
     const schema = (await pool.query('SELECT current_schema() AS name')).rows[0].name;
-    for (const file of ['003_news_ticker.sql','007_application_approval.sql','012_live_classes.sql','013_examinations.sql','014_exam_result_publication.sql']) {
+    for (const file of ['003_news_ticker.sql','007_application_approval.sql','012_live_classes.sql','013_examinations.sql','014_exam_result_publication.sql','015_class_attendance.sql']) {
       await pool.query(fs.readFileSync(path.join(root,'migrations',file),'utf8').replaceAll('SET search_path = public', `SET search_path = ${schema}`));
     }
     const auth = load('lib/auth.ts',{ '@/lib/db':{ db:{} } });
@@ -58,6 +58,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r,ms));
     async function request(ctx,url,method='GET',body) { return ctx.request.fetch(base+url,{method,headers:{origin:base},...(body===undefined?{}:{data:body})}); }
     async function json(ctx,url,method='GET',body,status=200) { const r=await request(ctx,url,method,body); assert.equal(r.status(),status,`${method} ${url}: ${await r.text()}`);return r.json(); }
     assert.equal((await request(student,'/api/admin/exams')).status(),401);
+    assert.equal((await request(student,'/api/portal/attendance')).status(),401);
     await json(admin,'/api/admin/verify','POST',{password:'incorrect'},401);
     await json(admin,'/api/admin/verify','POST',{password:adminPassword});
     for (const [ctx,record] of [[student,students[0]],[peer,students[1]],[other,students[2]]]) await json(ctx,'/api/portal/login','POST',{phone:record.phone,password:record.password});
@@ -145,13 +146,47 @@ const pause = (ms) => new Promise((r) => setTimeout(r,ms));
     const later=(await json(student,`/api/portal/exams/${peerExam.id}/attempt`,'POST',{})).attempt;
     assert.equal((await json(student,`/api/portal/exams/${peerExam.id}/attempt`,'PUT',{answers:{}})).attempt.result_published_at,null);
     await json(admin,`/api/admin/exams/${exam.id}/results/${later.id}`,'PATCH',{is_published:true},404);
+    // Attendance is a real server workflow: only the external Meet destination is stubbed.
+    await student.route('https://meet.google.com/**',(route)=>route.fulfill({contentType:'text/html',body:'<h1>Synthetic Google Meet destination</h1>'}));
+    await json(other,`/api/portal/classes/${live.id}/join`,'POST',{},404);
+    await json(student,`/api/portal/classes/${live.id}/join`,'POST',{status:'present'},400);
+    await json(student,`/api/admin/classes/${live.id}/attendance`,'GET',undefined,401);
+    await json(peer,`/api/portal/classes/${live.id}/attendance-request`,'POST',{note:'External join',status:'present'},400);
+    await json(student,`/api/admin/classes/${live.id}/attendance`,'PATCH',{student_ids:[students[0].id],status:'present'},401);
+    await sp.goto(base+'/portal/classes');await sp.getByRole('button',{name:'Join Google Meet',exact:false}).first().waitFor();
+    const popupPromise=student.waitForEvent('page');await sp.getByRole('button',{name:'Join Google Meet',exact:false}).first().click();const meetPopup=await popupPromise;await meetPopup.waitForURL('https://meet.google.com/**');await meetPopup.getByRole('heading',{name:'Synthetic Google Meet destination'}).waitFor();await meetPopup.close();
+    let own=(await json(student,'/api/portal/attendance')).attendance.find((r)=>r.class_id===live.id);assert.equal(own.status,'pending');assert(own.join_clicked_at);assert.equal(own.decided_at,null);
+    const pp=await peer.newPage();await pp.goto(base+'/portal/classes');await pp.getByRole('button',{name:'Request attendance',exact:true}).first().click();await pp.getByLabel('How did you join this class?',{exact:true}).fill('I joined using the WhatsApp link. <img src=x onerror="window.__attendanceXss=true">');await pp.getByRole('button',{name:'Send attendance request',exact:true}).click();await pp.getByText('Attendance request pending review',{exact:true}).first().waitFor();
+    assert.equal(JSON.stringify(await json(student,`/api/portal/attendance?student_id=${students[1].id}`)).includes('WhatsApp'),false,'student_id query cannot expose another request');
+    const external=(await json(peer,'/api/portal/attendance')).attendance.find((r)=>r.class_id===live.id);assert.equal(external.status,'pending');assert.equal(external.join_clicked_at,null);assert.equal(external.request_pending,true);
+    const markUrl=`/api/admin/classes/${live.id}/attendance`;
+    await json(admin,markUrl,'PATCH',{student_ids:[students[0].id,students[2].id],status:'present'},403);assert.equal((await json(student,'/api/portal/attendance')).attendance.find((r)=>r.class_id===live.id).status,'pending');
+    await ap.evaluate(()=>scrollTo(0,0));if(await ap.getByRole('button',{name:'Open menu',exact:true}).isVisible())await ap.getByRole('button',{name:'Open menu',exact:true}).click();await ap.locator('.admin-nav-groups').getByRole('button',{name:'Online classes',exact:true}).click();await ap.getByRole('button',{name:'Attendance',exact:true}).click();await ap.getByRole('dialog',{name:'Class attendance',exact:true}).getByRole('heading',{name:live.title,exact:true}).waitFor();
+    assert.equal(await ap.evaluate(()=>window.__attendanceXss===true),false,'request notes must render as text, not executable HTML');
+    await ap.getByLabel('Admin decision note (optional, internal)',{exact:true}).fill('INTERNAL ONLY CHECKED ROSTER');
+    await ap.getByRole('checkbox',{name:'Select Synthetic Student 0',exact:true}).check();await ap.getByRole('button',{name:'Approve selected as present',exact:true}).click();await ap.getByText('1 attendance record(s) updated.',{exact:true}).waitFor();
+    assert.equal((await json(student,'/api/portal/attendance')).attendance.find((r)=>r.class_id===live.id).status,'present');assert.equal((await json(peer,'/api/portal/attendance')).attendance.find((r)=>r.class_id===live.id).status,'pending');
+    await ap.getByRole('checkbox',{name:'Select all students in this filtered list',exact:false}).check();const bulkAttendanceResponse=ap.waitForResponse((r)=>r.url().endsWith(markUrl)&&r.request().method()==='PATCH');await ap.getByRole('button',{name:'Approve selected as present',exact:true}).click();await bulkAttendanceResponse;await ap.getByText('1 attendance record(s) updated.',{exact:true}).waitFor();assert.equal((await json(peer,'/api/portal/attendance')).attendance.find((r)=>r.class_id===live.id).status,'present');
+    // A new enrollee is not auto-approved by an earlier select-all decision.
+    await json(admin,`/api/admin/students/${students[2].id}`,'PATCH',{course_id:courses[0]});await ap.getByRole('button',{name:'Refresh attendance',exact:true}).click();await ap.getByRole('checkbox',{name:'Select Synthetic Student 2',exact:true}).waitFor();
+    const roster=(await json(admin,markUrl)).students;assert.equal(roster.find((r)=>r.student_id===students[2].id).status,'unmarked');
+    const manualRow=ap.locator('article').filter({has:ap.getByRole('checkbox',{name:'Select Synthetic Student 2',exact:true})});const manualAttendanceResponse=ap.waitForResponse((r)=>r.url().endsWith(markUrl)&&r.request().method()==='PATCH');await manualRow.getByRole('button',{name:'Approve present',exact:true}).click();await manualAttendanceResponse;await ap.getByText('1 attendance record(s) updated.',{exact:true}).waitFor();const manual=(await json(admin,markUrl)).students.find((r)=>r.student_id===students[2].id);assert.equal(manual.status,'present');assert.equal(manual.join_clicked_at,null);
+    await screenshot(ap,'real-attendance-admin-mobile');
+    await ap.getByRole('dialog',{name:'Class attendance',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
+    // Editing description must retain exact original times once attendance has frozen class identity.
+    await ap.getByRole('button',{name:'Edit / publish',exact:true}).click();await ap.getByLabel('Description / instructions',{exact:true}).fill('Teacher verified attendance.');await ap.getByRole('button',{name:'Save class',exact:true}).click();await ap.getByText('Class saved.',{exact:true}).waitFor();
+    await json(admin,`/api/admin/modules/${mod.id}`,'DELETE',undefined,409);await json(admin,`/api/admin/courses/${courses[0]}`,'DELETE',undefined,409);
+    const startAfter=(await pool.query('SELECT starts_at FROM live_classes WHERE id=$1',[live.id])).rows[0].starts_at;assert.equal(+startAfter,+new Date(classRaw.starts_at));
+    await sp.goto(base+'/portal/profile');await sp.getByRole('heading',{name:'My class attendance',exact:true}).waitFor();await sp.getByText('Present · Approved by admin',{exact:true}).first().waitFor();await screenshot(sp,'real-attendance-student-approved');
+    const ownWire=(await json(student,'/api/portal/attendance')).attendance;assert(ownWire.every((r)=>!('student_id' in r)));assert.equal(JSON.stringify(ownWire).includes('Teacher verified'),false);assert.equal(JSON.stringify(ownWire).includes('INTERNAL ONLY'),false);
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM class_attendance_events WHERE class_id=$1 AND actor_role='admin'",[live.id])).rows[0].n,3);
     await json(admin,`/api/admin/classes/${live.id}`,'PATCH',{...classRaw,is_published:true,is_cancelled:true});assert((await json(student,'/api/portal/classes')).classes[0].is_cancelled);
     assert.equal((await json(other,'/api/news')).some((n)=>n.id==='online-class-notice'),false);
     const studentRecord=await json(admin,`/api/admin/students/${students[0].id}/exams`);assert.equal(studentRecord.results.find((r)=>r.id===stored.id).score_percent,33.33);
     await Promise.all(responseChecks); assert.deepEqual(networkErrors,[],'student network payload confidentiality'); assert.equal(consoleMessages.some((v)=>/answer_index|correct_index|correct_answer|marks_awarded|score_percent/.test(v)),false,'sensitive exam data must not be logged to browser console');
     assert.deepEqual(errors,[]);
     if(process.env.RUN_FIXTURE_REGRESSIONS==='true') {
-      for(const script of ['test-learning-ui.cjs','test-mobile-loading.cjs']) {
+      for(const script of ['test-learning-ui.cjs','test-mobile-loading.cjs','test-admin-ux.cjs']) {
         await new Promise((resolve,reject)=>{
           const run=spawn(process.execPath,[path.join(root,'scripts',script)],{cwd:root,env:{...process.env,BASE_URL:base},stdio:['ignore','pipe','pipe']});
           run.stdout.on('data',(data)=>process.stdout.write(data));run.stderr.on('data',(data)=>process.stderr.write(data));
@@ -159,7 +194,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r,ms));
         });
       }
     }
-    console.log('PASS REAL E2E: password logins; module/video publication and tracked completion; scoped Meet notices/calendar/cancel; draft/prerequisite/enrollment denials; browser attempt/save/reload/submit; private grades; admin answer review and score calculation; UI release/withdrawal; student dashboard; expiry/bulk/future submissions; role/CSRF/tampering negatives; mobile layout. No real student records changed.');
+    console.log('PASS REAL E2E: password logins; module/video publication and tracked completion; scoped Meet notices/calendar/cancel; draft/prerequisite/enrollment denials; browser attempt/save/reload/submit; private grades; admin answer review and score calculation; UI release/withdrawal; student dashboard; expiry/bulk/future submissions; role/CSRF/tampering negatives; attendance join-popup evidence, external request, individual/bulk approval, manual attendance, future-enrollee isolation, privacy and approved student display; mobile layout. No real student records changed.');
   } catch (e) { console.error('Isolated server diagnostics:',logs.replace(/postgres(?:ql)?:\/\/[^\s]+/g,'[database URL redacted]'));throw e; }
   finally {
     if(browser) await browser.close();
