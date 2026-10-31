@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { Icon, IconName } from '@/components/icons';
 import { Badge, ConfirmDialog, useDialogFocus } from '@/components/ui';
 import JSZip from 'jszip';
+import { UnsavedChangesProvider, useAdminNavigation, useAdminDraft } from '@/components/admin/UnsavedChanges';
 import ExamsManager from '@/components/admin/ExamsManager';
 import ClassesManager from '@/components/admin/ClassesManager';
 import CoursesManager from '@/components/admin/CoursesManager';
@@ -49,7 +50,10 @@ interface Submission {
   created_at: string;
 }
 
-export default function AdminPage() {
+export default function AdminPage() { return <UnsavedChangesProvider><AdminWorkspace /></UnsavedChangesProvider>; }
+
+function AdminWorkspace() {
+  const { canLeave } = useAdminNavigation();
   const t = useAdminCopy();
   const copy = useCopy();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -80,8 +84,17 @@ export default function AdminPage() {
   const [bulkMsg, setBulkMsg] = useState('');
 
   // Tab & Extended Admin state
-  type AdminTab = 'exams' | 'classes' | 'analytics' | 'applications' | 'enquiries' | 'news' | 'courses' | 'students' | 'questions';
+  type AdminTab = 'records' | 'exams' | 'classes' | 'analytics' | 'applications' | 'enquiries' | 'news' | 'courses' | 'students' | 'questions';
   const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+  useEffect(() => {
+    const read = () => {
+      const key = new URL(window.location.href).searchParams.get('section');
+      const valid = ['analytics', 'students', 'courses', 'exams', 'classes', 'questions', 'applications', 'enquiries', 'news', 'records'];
+      if (key && valid.includes(key)) setActiveTab(key as AdminTab);
+    };
+    read(); window.addEventListener('popstate', read); return () => window.removeEventListener('popstate', read);
+  }, []);
+
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [openQuestions, setOpenQuestions] = useState(0);
   const [studentCourse, setStudentCourse] = useState<string | undefined>(undefined);
@@ -135,6 +148,9 @@ export default function AdminPage() {
     success?: boolean; error?: string;
     certificateUrl?: string; viewUrl?: string; grade?: string; serialNumber?: string;
   } | null>(null);
+
+  useAdminDraft(scratchModalOpen && !scratchResult?.success && JSON.stringify(scratchForm) !== JSON.stringify(SCRATCH_DEFAULTS), scratchLoading);
+  const scratchDialogRef = useDialogFocus(scratchModalOpen, () => { if (canLeave()) setScratchModalOpen(false); });
 
   function setScratch<K extends keyof ScratchForm>(field: K, value: ScratchForm[K]) {
     setScratchForm(prev => ({ ...prev, [field]: value }));
@@ -519,13 +535,20 @@ export default function AdminPage() {
     { key: 'courses', label: 'Courses & lessons', hindi: 'कोर्स और पाठ', icon: 'book', description: copy('Manage courses and lessons.', 'कोर्स और पाठ सँभालें।'), hint: copy('Create a course, add modules, then publish lessons for your students.', 'कोर्स बनाएँ, उसमें भाग जोड़ें, फिर छात्रों के लिए पाठ प्रकाशित करें।') },
     { key: 'exams', label: 'Examinations', hindi: 'परीक्षाएँ', icon: 'book', description: copy('Question banks and timed exams.', 'प्रश्न बैंक और समयबद्ध परीक्षाएँ।'), hint: copy('Create draft module exams, then publish them to enrolled students.', 'मॉड्यूल परीक्षा का ड्राफ्ट बनाएँ, फिर छात्रों के लिए प्रकाशित करें।') },
     { key: 'classes', label: 'Online classes', hindi: 'ऑनलाइन कक्षाएँ', icon: 'clock', description: copy('Schedule live classes.', 'लाइव कक्षाएँ तय करें।'), hint: copy('Publish Google Meet classes for a course or module.', 'कोर्स या मॉड्यूल के लिए Google Meet कक्षाएँ प्रकाशित करें।') },
-    { key: 'questions', label: 'Student questions', hindi: 'छात्रों के सवाल', icon: 'message', count: openQuestions || undefined, description: copy('Answer your students’ questions.', 'छात्रों के सवालों के जवाब दें।'), hint: copy('Reply in simple Hindi or English. Students see your answer below their lesson.', 'सरल हिन्दी या अंग्रेज़ी में जवाब दें। छात्रों को जवाब उनके पाठ के नीचे दिखेगा।') },
+    { key: 'questions', label: 'Student doubts', hindi: 'छात्रों की शंकाएँ', icon: 'message', count: openQuestions || undefined, description: copy('Answer your students’ questions.', 'छात्रों के सवालों के जवाब दें।'), hint: copy('Reply in simple Hindi or English. Students see your answer below their lesson.', 'सरल हिन्दी या अंग्रेज़ी में जवाब दें। छात्रों को जवाब उनके पाठ के नीचे दिखेगा।') },
     { key: 'applications', label: 'Applications', hindi: 'आवेदन', icon: 'file', count: pendingCount, description: copy('Review internship applications.', 'इंटर्नशिप के आवेदन देखें।'), hint: copy('Review applications and approve or reject admission. Students cannot learn until you approve.', 'आवेदन जाँचें और प्रवेश मंज़ूर या नामंज़ूर करें। आपकी मंज़ूरी के बिना छात्र पढ़ाई शुरू नहीं कर सकते।') },
     { key: 'enquiries', label: 'Enquiries', hindi: 'पूछताछ', icon: 'help', count: enquiries.length, description: copy('Respond to student enquiries.', 'छात्रों की पूछताछ का जवाब दें।'), hint: copy('Find students who need more information and help them get started.', 'जानकारी चाहने वाले छात्रों से संपर्क करें और शुरू करने में मदद करें।') },
+    { key: 'records', label: 'Certificates & downloads', hindi: 'प्रमाणपत्र और डाउनलोड', icon: 'file', description: copy('Certificates and records.', 'प्रमाणपत्र और रिकॉर्ड।'), hint: copy('Create certificates and export application records from one place.', 'एक जगह से प्रमाणपत्र बनाएँ और आवेदन रिकॉर्ड डाउनलोड करें।') },
     { key: 'news', label: 'Announcements', hindi: 'सूचनाएँ', icon: 'bell', count: newsItems.length || undefined, description: copy('Share an announcement.', 'सभी तक ज़रूरी सूचना पहुँचाएँ।'), hint: copy('Add notices to the homepage Notice Board. You can publish several notices; long lists scroll automatically.', 'मुख्य पेज के सूचना बोर्ड के लिए सूचनाएँ जोड़ें। कई सूचनाएँ जोड़ सकते हैं; लंबी सूची अपने आप स्क्रॉल होगी।') },
   ];
   const current = TABS.find((item) => item.key === activeTab)!;
-  const selectTab = (key: AdminTab) => { setActiveTab(key); setMenuOpen(false); if (key === 'news') fetchNews(); };
+  const selectTab = (key: AdminTab) => {
+    if (key !== activeTab && !canLeave()) return;
+    setActiveTab(key); setMenuOpen(false);
+    const url = new URL(window.location.href); url.searchParams.set('section', key); window.history.replaceState(null, '', url);
+    if (key === 'news') fetchNews();
+    requestAnimationFrame(() => { window.scrollTo(0, 0); document.getElementById('main-content')?.focus({ preventScroll: true }); });
+  };
   async function approveAllPending() {
     setBulkConfirm(false); setBulkBusy(true); setBulkMsg('');
     let approved = 0;
@@ -551,30 +574,48 @@ export default function AdminPage() {
     } finally { setBulkBusy(false); fetchSubmissions(); }
   }
 
-  const refresh = () => { fetchSubmissions(); fetchAnalytics(); fetchEnquiries(); refreshOpenQuestions(); if (activeTab === 'news') fetchNews(); setRefreshKey((key) => key + 1); };
+  const refresh = () => { if (!canLeave()) return; fetchSubmissions(); fetchAnalytics(); fetchEnquiries(); refreshOpenQuestions(); if (activeTab === 'news') fetchNews(); setRefreshKey((key) => key + 1); };
 
   return (
-    <div className="ui-page admin-shell">
+    <div className="ui-page admin-shell" onClickCapture={(e) => {
+      const link = (e.target as HTMLElement).closest('a[href]');
+      if (link && !link.getAttribute('href')?.startsWith('#') && link.getAttribute('target') !== '_blank' && !canLeave()) e.preventDefault();
+    }}>
       <a className="skip-link" href="#main-content">{copy('Skip to content', 'मुख्य जानकारी पर जाएँ')}</a>
       {menuOpen && <div className="admin-mobile-backdrop" onClick={() => setMenuOpen(false)} />}
       <div ref={menuRef} tabIndex={-1} className={`admin-sidebar ${menuOpen ? 'is-open' : ''}`} role={menuOpen ? 'dialog' : undefined} aria-modal={menuOpen ? true : undefined} aria-label={copy('Admin navigation', 'एडमिन नेविगेशन')}>
         <div className="flex items-center justify-between"><Link href="/" className="portal-brand"><span className="brand-logo"><Image src="/logo.png" alt="" width={30} height={30} /></span><span><strong>RAJTECH<span className="brand-dot">.</span></strong><small>{copy('Admin workspace', 'एडमिन की जगह')}</small></span></Link><button className="icon-button admin-mobile-menu" onClick={() => setMenuOpen(false)} aria-label={copy('Close menu', 'मेन्यू बंद करें')}><Icon name="close" size={18} /></button></div>
-        <div><div className="admin-nav-label">{copy('WORKSPACE', 'काम की जगह')}</div><nav className="admin-nav" aria-label={copy('Admin sections', 'एडमिन के भाग')}>{TABS.map((item) => <button key={item.key} aria-current={activeTab === item.key ? 'page' : undefined} onClick={() => selectTab(item.key)}><Icon name={item.icon} size={19} /><span>{copy(item.label, item.hindi)}</span>{!!item.count && <span className={`admin-nav-count ${item.key === 'questions' ? 'needs-answer' : ''}`}>{item.count}</span>}</button>)}</nav></div>
+        <nav className="admin-nav-groups" aria-label={copy('Admin sections', 'एडमिन के भाग')}>
+          {[
+            { en: 'Overview', hi: 'एक नज़र में', keys: ['analytics'] },
+            { en: 'People & admissions', hi: 'छात्र और प्रवेश', keys: ['applications', 'students', 'enquiries'] },
+            { en: 'Learning', hi: 'पढ़ाई', keys: ['courses', 'classes'] },
+            { en: 'Assessments', hi: 'मूल्यांकन', keys: ['exams'] },
+            { en: 'Communication', hi: 'संचार', keys: ['questions', 'news'] },
+            { en: 'Records', hi: 'रिकॉर्ड', keys: ['records'] },
+          ].map((group) => <section key={group.en}><h2 className="admin-nav-label">{copy(group.en, group.hi)}</h2><div className="admin-nav">{group.keys.map((key) => {
+            const item = TABS.find((tab) => tab.key === key)!;
+            return <button key={key} aria-current={activeTab === key ? 'page' : undefined} onClick={() => selectTab(item.key)}><Icon name={item.icon} size={19} /><span>{item.key === 'questions' ? copy('Student doubts', 'छात्रों की शंकाएँ') : copy(item.label, item.hindi)}</span>{!!item.count && <span className={`admin-nav-count ${item.key === 'questions' ? 'needs-answer' : ''}`}>{item.count}</span>}</button>;
+          })}</div></section>)}
+        </nav>
         <div className="admin-sidebar-bottom"><span className="hero-label">{copy('HERE TO HELP YOU HELP', 'आपकी मदद के लिए')}</span><p>{copy('Less time finding things. More time helping students.', 'जानकारी खोजने में कम समय। छात्रों की मदद में ज़्यादा समय।')}</p><Walkthrough kind="admin" storageKey="rts_tour_admin" /><Link href="/portal/videos" className="mt-5"><Icon name="book" size={17} />{copy('Open student portal', 'छात्र पेज खोलें')} ↗</Link></div>
       </div>
       <header className="admin-topbar"><div className="admin-topbar-title"><button className="icon-button admin-mobile-menu" aria-expanded={menuOpen} aria-label={copy('Open menu', 'मेन्यू खोलें')} onClick={() => setMenuOpen(true)}><Icon name="menu" size={19} /></button><span>{copy('Workspace', 'काम की जगह')} /</span><strong>{copy(current.label, current.hindi)}</strong></div><div className="admin-topbar-actions"><LangToggle /><button className="icon-button" onClick={refresh} aria-label={copy('Refresh data', 'जानकारी फिर लाएँ')} title={copy('Refresh data', 'जानकारी फिर लाएँ')}>{loading ? <Spinner /> : <Icon name="refresh" size={18} />}</button><button className="icon-button" disabled={signingOut} onClick={async () => {
+        if (!canLeave()) return;
         setSigningOut(true);
         try { const res = await fetch('/api/admin/logout', { method: 'POST' }); if (!res.ok) throw new Error('logout'); setIsAuthenticated(false); setPassword(''); setSubmissions([]); }
         catch { setAuthError(copy('Could not sign out. Please try again.', 'बाहर नहीं निकल पाए। फिर कोशिश करें।')); } finally { setSigningOut(false); }
       }} aria-label={copy('Sign out', 'बाहर निकलें')} title={copy('Sign out', 'बाहर निकलें')}>{signingOut ? <Spinner /> : <Icon name="logout" size={18} />}</button></div></header>
       <main id="main-content" tabIndex={-1} className="admin-content">
-        <section className="admin-context"><div className="page-heading"><div><div className="ui-eyebrow">{copy(current.label, current.hindi)}</div><h1>{current.description}</h1><p>{current.hint}</p></div>{activeTab === 'applications' && <button className="ui-btn ui-btn-primary" onClick={() => { setScratchForm(SCRATCH_DEFAULTS); setScratchResult(null); setScratchModalOpen(true); }}><Icon name="award" size={18} />{copy('New certificate', 'नया प्रमाणपत्र')}</button>}</div>
-          <div className="admin-action-strip"><p>{copy('Clear next steps. Everything in its place.', 'अगला कदम साफ़ है। हर चीज़ अपनी जगह है।')}</p><details className="admin-tools"><summary className="ui-btn ui-btn-sm"><Icon name="download" size={16} />{copy('Downloads', 'डाउनलोड')}</summary><div className="admin-tools-menu"><button onClick={exportToCSV}><Icon name="file" size={17} />{copy('Application records (CSV)', 'आवेदन रिकॉर्ड (CSV)')}</button><button onClick={downloadAllImagesAsZip} disabled={downloadingZip || submissions.length === 0}><Icon name="download" size={17} />{downloadingZip ? <BusyText>{copy('Preparing images…', 'फ़ोटो तैयार हो रहे हैं…')}</BusyText> : copy('All student images (ZIP)', 'सभी छात्रों के फ़ोटो (ZIP)')}</button></div></details></div>
+        <section className="admin-context"><div className="page-heading"><div><div className="ui-eyebrow">{copy(current.label, current.hindi)}</div><h1>{current.description}</h1><p>{current.hint}</p></div>{activeTab === 'records' && <button className="ui-btn ui-btn-primary" onClick={() => { setScratchForm(SCRATCH_DEFAULTS); setScratchResult(null); setScratchModalOpen(true); }}><Icon name="award" size={18} />{copy('New certificate', 'नया प्रमाणपत्र')}</button>}</div>
+
           {authError && <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--bad)' }}>{authError}</p>}
           {activeTab === 'analytics' && pendingCount > 0 && <div className="admin-alert mt-5"><Icon name="users" size={19} /><span>{copy(`${pendingCount} ${pendingCount === 1 ? 'application needs' : 'applications need'} your approval before students can enter.`, `${pendingCount} छात्रों के प्रवेश के लिए आपकी मंज़ूरी बाकी है।`)}</span><button onClick={() => { setApprovalFilter('pending'); selectTab('applications'); }}>{copy('Review applications', 'आवेदन जाँचें')} →</button></div>}
           {activeTab === 'analytics' && openQuestions > 0 && <div className="admin-alert mt-5"><Icon name="message" size={19} /><span>{copy(`${openQuestions} student question${openQuestions === 1 ? ' is' : 's are'} waiting for your reply.`, `${openQuestions} छात्रों के सवाल आपके जवाब का इंतज़ार कर रहे हैं।`)}</span><button onClick={() => selectTab('questions')}>{copy('Answer questions', 'सवालों के जवाब दें')} →</button></div>}
         </section>
         <div key={refreshKey}>
+      {activeTab === 'records' && <section className="max-w-5xl mx-auto p-4 space-y-4"><h2 className="ui-h2">{copy('Download records', 'रिकॉर्ड डाउनलोड करें')}</h2><p>{copy('These exports contain personal student information. Store and share them securely.', 'इन डाउनलोड में छात्रों की निजी जानकारी है। इन्हें सुरक्षित रखें और साझा करें।')}</p><div className="ui-card ui-card-pad flex flex-wrap gap-3"><button className="ui-btn" disabled={!submissions.length} onClick={exportToCSV}><Icon name="file" size={17} />{copy('Application records (CSV)', 'आवेदन रिकॉर्ड (CSV)')}</button><button className="ui-btn" onClick={downloadAllImagesAsZip} disabled={downloadingZip || !submissions.length}><Icon name="download" size={17} />{downloadingZip ? <BusyText>{copy('Preparing images…', 'फ़ोटो तैयार हो रहे हैं…')}</BusyText> : copy('All student images (ZIP)', 'सभी छात्रों के फ़ोटो (ZIP)')}</button></div></section>}
+
       {activeTab === 'exams' && <ExamsManager />}
       {activeTab === 'classes' && <ClassesManager />}
       {activeTab === 'courses' && <CoursesManager />}
@@ -1119,12 +1160,12 @@ export default function AdminPage() {
 
       {/* Scratch Certificate Modal */}
       {scratchModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50">
-          <div className="bg-white sm:rounded-xl rounded-t-2xl w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-[80]">
+          <div ref={scratchDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={copy('New certificate', 'नया प्रमाणपत्र')} className="bg-white sm:rounded-xl rounded-t-2xl w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto">
             <div className="sticky top-0 bg-emerald-700 text-white p-4 flex justify-between items-center rounded-t-2xl sm:rounded-t-xl z-10">
               <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/30 rounded-full sm:hidden"></div>
               <h2 className="text-lg font-bold">{t("New Certificate (Walk-in Student)")}</h2>
-              <button onClick={() => setScratchModalOpen(false)} className="text-white/70 hover:text-white">
+              <button aria-label={copy('Close certificate editor', 'प्रमाणपत्र संपादक बंद करें')} onClick={() => { if (canLeave()) setScratchModalOpen(false); }} className="text-white/70 hover:text-white">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
