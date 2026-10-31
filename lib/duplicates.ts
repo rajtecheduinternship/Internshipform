@@ -16,6 +16,8 @@ export interface DuplicateMatch {
   id: string;
   student_name: string;
   father_name: string;
+  mother_name: string;
+  date_of_birth: string | null;
   contact_number: string;
   email_address: string;
   university_roll_number: string;
@@ -29,12 +31,12 @@ export interface DuplicateMatch {
 }
 
 interface Row {
-  id: string; student_name: string; father_name: string; date_of_birth: string | null;
+  id: string; student_name: string; father_name: string; mother_name: string; date_of_birth: string | null;
   contact_number: string; email_address: string; university_roll_number: string;
   college_name: string | null; internship_topic: string | null; approval_status: string; created_at: string;
 }
 
-const COLUMNS = `id, student_name, father_name, date_of_birth::text AS date_of_birth, contact_number, email_address,
+const COLUMNS = `id, student_name, father_name, mother_name, date_of_birth::text AS date_of_birth, contact_number, email_address,
   university_roll_number, college_name, internship_topic, approval_status, created_at::text AS created_at`;
 
 const NAME_MIN = 0.85;
@@ -78,7 +80,7 @@ function compare(input: DuplicateInput, row: Row): DuplicateMatch | null {
   else if (nameClose && input.dateOfBirth && row.date_of_birth && input.dateOfBirth.slice(0, 10) === row.date_of_birth.slice(0, 10)) reasons.push('name_dob');
   if (!reasons.length) return null;
   return {
-    id: row.id, student_name: row.student_name, father_name: row.father_name, contact_number: row.contact_number,
+    id: row.id, student_name: row.student_name, father_name: row.father_name, mother_name: row.mother_name, date_of_birth: row.date_of_birth, contact_number: row.contact_number,
     email_address: row.email_address, university_roll_number: row.university_roll_number, college_name: row.college_name,
     internship_topic: row.internship_topic, approval_status: row.approval_status, created_at: row.created_at, reasons,
     level: reasons.some((r) => r === 'phone' || r === 'email' || r === 'roll') ? 'exact' : 'likely',
