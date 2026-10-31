@@ -44,6 +44,8 @@ export default function InternshipForm() {
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
   const [formData, setFormData] = useState<InternshipFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicate, setDuplicate] = useState<{ code: 'ALREADY_REGISTERED' | 'POSSIBLE_DUPLICATE'; phoneHint?: string } | null>(null);
+  const [confirmNotDuplicate, setConfirmNotDuplicate] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
   const [submittedData, setSubmittedData] = useState<InternshipFormData | null>(null);
@@ -141,6 +143,7 @@ export default function InternshipForm() {
 
     setIsSubmitting(true);
     setSubmitStatus(null);
+    setDuplicate(null);
 
     try {
       const response = await fetch('/api/submit', {
@@ -152,6 +155,7 @@ export default function InternshipForm() {
           ...formData,
           turnstileToken,
           formToken, // Server-side signed token for timing verification
+          confirmNotDuplicate,
         }),
       });
 
@@ -167,6 +171,12 @@ export default function InternshipForm() {
         });
         setShowSuccessScreen(true);
         setSubmitStatus({ type: 'success', message: 'Application submitted successfully!' });
+      } else if (response.status === 409 && (result.code === 'ALREADY_REGISTERED' || result.code === 'POSSIBLE_DUPLICATE')) {
+        setDuplicate({ code: result.code, phoneHint: result.phoneHint });
+        if (typeof window !== 'undefined' && (window as unknown as { resetTurnstile?: () => void }).resetTurnstile) {
+          (window as unknown as { resetTurnstile: () => void }).resetTurnstile();
+          setTurnstileToken('');
+        }
       } else {
         setSubmitStatus({ type: 'error', message: result.error || t('Could not submit your application. Please try again.', 'फॉर्म जमा नहीं हो पाया। फिर कोशिश करें।') });
         // Reset Turnstile to get a new token for retry
@@ -371,6 +381,13 @@ export default function InternshipForm() {
     <div className="application-layout">
       <form onSubmit={handleSubmit} className="min-w-0 space-y-6" aria-busy={isSubmitting}>
         <input type="text" name="website" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+        {duplicate && <div role="alert" className="rounded-xl p-5 space-y-3" style={{ background: 'var(--warn-soft, #fff7e6)', color: 'var(--ink, #1f2937)', border: '1px solid var(--warn, #f59e0b)' }}>
+          <h3 className="ui-h2">{duplicate.code === 'ALREADY_REGISTERED' ? t('You are already registered', 'आप पहले से रजिस्टर्ड हैं') : t('You may already be registered', 'हो सकता है आप पहले से रजिस्टर्ड हों')}</h3>
+          <p>{t('Please sign in to the portal instead of filling this form again. Use the mobile number your college gave us and your university roll number (the long number on your admit card) as the password.', 'कृपया फॉर्म दोबारा भरने की जगह पोर्टल में लॉगिन करें। यूज़र आईडी में वही मोबाइल नंबर डालें जो कॉलेज के ज़रिये हमें मिला था, और पासवर्ड में अपना यूनिवर्सिटी रोल नंबर (एडमिट कार्ड वाला लंबा नंबर) डालें।')}</p>
+          {duplicate.phoneHint && <p className="text-sm">{t(`The registered mobile number ends in ••••••••${duplicate.phoneHint}.`, `रजिस्टर्ड मोबाइल नंबर के आख़िरी अंक ••••••••${duplicate.phoneHint} हैं।`)}</p>}
+          <div className="flex flex-wrap gap-3"><Link href="/portal/login" className="ui-btn ui-btn-primary">{t('Go to sign in', 'लॉगिन पर जाएँ')}<Icon name="arrow" size={17} /></Link><Link href="/enquiry" className="ui-btn">{t('Ask our team', 'हमारी टीम से पूछें')}</Link></div>
+          {duplicate.code === 'POSSIBLE_DUPLICATE' && <label className="flex items-start gap-3 text-sm cursor-pointer"><input type="checkbox" className="custom-checkbox shrink-0 mt-1" checked={confirmNotDuplicate} onChange={(e) => setConfirmNotDuplicate(e.target.checked)} /><span>{t('I tried signing in and it did not work, or I am a different student. Submit my application anyway.', 'मैंने लॉगिन करके देखा पर नहीं हुआ, या मैं दूसरा छात्र हूँ। फिर भी मेरा फॉर्म जमा करें।')}</span></label>}
+        </div>}
         {submitStatus?.type === 'error' && <div ref={errorRef} role="alert" tabIndex={-1} className="rounded-xl p-4 text-sm" style={{ background: 'var(--bad-soft)', color: 'var(--bad)' }}>{submitStatus.message}</div>}
         <section className="ui-card overflow-hidden scroll-mt-28" id="personal-details"><div className="ui-card-head"><div className="flex gap-3 items-center"><span className="module-number">01</span><div><h2 className="ui-h2">{t('About you', 'आपकी जानकारी')}</h2><p className="ui-muted">{t('Tell us who you are.', 'अपनी जानकारी भरें।')}</p></div></div><Icon name="user" /></div><div className="ui-card-pad space-y-5"><div className="grid sm:grid-cols-2 gap-5">{textField('studentName', t('Full name', 'पूरा नाम'))}{textField('fatherName', t('Father’s name', 'पिता का नाम'))}{textField('motherName', t('Mother’s name', 'माता का नाम'))}<div><label htmlFor="apply-gender" className="ui-label">{t('Gender', 'लिंग')} *</label><select id="apply-gender" name="gender" value={formData.gender} onChange={handleInputChange} required className="ui-field"><option value="">{t('Choose one', 'एक चुनें')}</option>{GENDER_OPTIONS.map((value) => <option key={value} value={value}>{value === 'Male' ? t('Male', 'पुरुष') : value === 'Female' ? t('Female', 'महिला') : t('Other', 'अन्य')}</option>)}</select></div>{textField('dateOfBirth', t('Date of birth', 'जन्मतिथि'), 'date')}</div><div><label htmlFor="apply-address" className="ui-label">{t('Full address', 'पूरा पता')} *</label><textarea id="apply-address" rows={3} required className="ui-field" name="address" autoComplete="street-address" value={formData.address} onChange={handleInputChange} /></div></div></section>
         <section className="ui-card overflow-hidden scroll-mt-28" id="academic-details"><div className="ui-card-head"><div className="flex gap-3 items-center"><span className="module-number">02</span><div><h2 className="ui-h2">{t('Your college & course', 'आपका कॉलेज और कोर्स')}</h2><p className="ui-muted">{t('Use the details in your college records.', 'कॉलेज के रिकॉर्ड वाली जानकारी दें।')}</p></div></div><Icon name="book" /></div><div className="ui-card-pad space-y-5"><div><label htmlFor="apply-college" className="ui-label">{t('College name', 'कॉलेज का नाम')} *</label><select id="apply-college" name="collegeName" value={formData.collegeName} onChange={handleInputChange} required className="ui-field"><option value="">{t('Choose your college', 'अपना कॉलेज चुनें')}</option>{COLLEGES.map((college) => <option key={college} value={college}>{college === 'Other' ? t('Other college', 'अन्य कॉलेज') : college}</option>)}</select></div>{formData.collegeName === 'Other' && textField('otherCollegeName', t('Write your college name', 'अपने कॉलेज का नाम लिखें'))}{textField('universityRollNumber', t('University / college roll number', 'विश्वविद्यालय / कॉलेज रोल नंबर'), 'text', true, t('This will be your first password. Copy it exactly from your college records.', 'यही आपका पहला पासवर्ड होगा। इसे कॉलेज के रिकॉर्ड से सही-सही लिखें।'))}<div><label htmlFor="apply-course" className="ui-label">{t('Internship course', 'इंटर्नशिप का कोर्स')} *</label><select disabled={coursesLoading || coursesError} aria-busy={coursesLoading} id="apply-course" name="courseId" value={formData.courseId} onChange={handleInputChange} required className="ui-field"><option value="">{t('Choose your course', 'अपना कोर्स चुनें')}</option>{courseOptions.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}</select>{coursesLoading && <LoadingState compact label={t('Loading available courses', 'उपलब्ध कोर्स लोड हो रहे हैं')} />}{coursesError && <p role="alert" className="ui-muted mt-2">{t('Courses could not load. Please reload the page or contact our team.', 'कोर्स नहीं खुल पाए। पेज फिर खोलें या हमारी टीम से संपर्क करें।')} <Link href="/enquiry" className="ui-link">{t('Get help', 'मदद लें')}</Link></p>}{!coursesLoading && !coursesError && !courseOptions.length && <p className="ui-muted mt-2">{t('No courses are available right now.', 'अभी कोई कोर्स नहीं दिख रहा है।')} <Link href="/enquiry" className="ui-link">{t('Ask our team for help', 'हमारी टीम से मदद लें')}</Link></p>}</div></div></section>
