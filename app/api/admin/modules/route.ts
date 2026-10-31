@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { adminCreateModule, adminListModules } from '@/lib/lms';
+import { adminCreateModule, adminListModules, adminSetModuleCourses, isUuid } from '@/lib/lms';
 import { cleanText } from '@/lib/security';
 import { safeUrl } from '@/lib/validate';
 
@@ -22,5 +22,9 @@ export async function POST(req: NextRequest) {
     thumbnail_url: safeUrl(b?.thumbnail_url),
     is_mandatory: b?.is_mandatory === true,
   });
+  if (Array.isArray(b?.course_ids) && b.course_ids.length) {
+    const ids = [...new Set(b.course_ids.map(String))].filter(isUuid);
+    await adminSetModuleCourses(mod.id, ids).catch((e) => console.error('Attach module to courses failed:', e));
+  }
   return NextResponse.json({ module: mod }, { status: 201 });
 }

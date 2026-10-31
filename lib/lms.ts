@@ -362,7 +362,30 @@ export async function adminGetModule(id: string) {
        FROM videos v WHERE v.module_id = $1 ORDER BY v.archived_at IS NOT NULL, v.order_index ASC, v.created_at ASC`,
     [id]
   );
-  return { ...m.rows[0], videos: v.rows };
+  const c = await pool().query(`SELECT course_id FROM course_modules WHERE module_id = $1`, [id]);
+  return { ...m.rows[0], videos: v.rows, course_ids: c.rows.map((r) => r.course_id as string) };
+}
+
+/** Make a module belong to exactly these courses. Existing placements keep their order; new ones go last. */
+export async function adminSetModuleCourses(moduleId: string, courseIds: string[]) {
+  const client = await pool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM course_modules WHERE module_id = $1 AND course_id <> ALL($2::uuid[])`, [moduleId, courseIds]);
+    await client.query(
+      `INSERT INTO course_modules (course_id, module_id, order_index)
+       SELECT c.id, $1, COALESCE((SELECT MAX(order_index) FROM course_modules WHERE course_id = c.id), 0) + 1
+         FROM courses c WHERE c.id = ANY($2::uuid[])
+       ON CONFLICT DO NOTHING`,
+      [moduleId, courseIds]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function adminCreateModule(d: { title: string; description?: string; thumbnail_url?: string | null; is_mandatory?: boolean }) {

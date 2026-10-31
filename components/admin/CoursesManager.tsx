@@ -137,7 +137,7 @@ export default function CoursesManager() {
       )}
       {editModule && (
         <Drawer onClose={() => setEditModule(null)}>
-          <ModuleEditor id={editModule === 'new' ? null : editModule} onClose={() => setEditModule(null)} onChanged={load} />
+          <ModuleEditor id={editModule === 'new' ? null : editModule} allCourses={courses ?? []} onClose={() => setEditModule(null)} onChanged={load} />
         </Drawer>
       )}
       {confirm && <ConfirmDialog title={confirm.title} body={confirm.body} confirmLabel={confirm.label} onConfirm={doConfirm} onCancel={() => setConfirm(null)} />}
@@ -263,12 +263,13 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
   );
 }
 
-function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: () => void; onChanged: () => void }) {
+function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | null; allCourses: Course[]; onClose: () => void; onChanged: () => void }) {
   const t = useAdminCopy();
   const [moduleId, setModuleId] = useState(id);
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
   const [f, setF] = useState({ title: '', description: '', thumbnail_url: '', is_mandatory: false });
+  const [courseIds, setCourseIds] = useState<string[]>([]);
   const [videos, setVideos] = useState<AdminVideo[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [confirm, setConfirm] = useState<AdminVideo | null>(null);
@@ -277,9 +278,9 @@ function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: 
 
   const reload = useCallback((mid: string) => {
     setLoading(true);
-    return api<{ module: ModuleSummary & { videos: AdminVideo[] } }>(`/api/admin/modules/${mid}`).then((d) => {
+    return api<{ module: ModuleSummary & { videos: AdminVideo[]; course_ids: string[] } }>(`/api/admin/modules/${mid}`).then((d) => {
       setF({ title: d.module.title, description: d.module.description || '', thumbnail_url: d.module.thumbnail_url || '', is_mandatory: !!d.module.is_mandatory });
-      setVideos(d.module.videos);
+      setVideos(d.module.videos); setCourseIds(d.module.course_ids || []);
     }).catch((e) => setMsg({ ok: false, t: e.message })).finally(() => setLoading(false));
   }, []);
   useEffect(() => { if (id) reload(id); }, [id, reload]);
@@ -290,8 +291,8 @@ function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: 
     catch (e) { setMsg({ ok: false, t: (e as Error).message }); } finally { setSaving(false); }
   };
   const saveDetails = () => act(async () => {
-    if (moduleId) await api(`/api/admin/modules/${moduleId}`, 'PATCH', f);
-    else { const r = await api<{ module: { id: string } }>('/api/admin/modules', 'POST', f); setModuleId(r.module.id); }
+    if (moduleId) await api(`/api/admin/modules/${moduleId}`, 'PATCH', { ...f, course_ids: courseIds });
+    else { const r = await api<{ module: { id: string } }>('/api/admin/modules', 'POST', { ...f, course_ids: courseIds }); setModuleId(r.module.id); }
   });
 
   return (
@@ -308,6 +309,23 @@ function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: 
             <input type="checkbox" checked={f.is_mandatory} onChange={(e) => setF({ ...f, is_mandatory: e.target.checked })} style={{ marginTop: 3, accentColor: 'var(--brand)' }} />
             <span className="text-[13px]"><strong>{t("Common to all courses")}</strong><br /><span className="ui-muted">{t("Every student gets this module automatically, so you do not have to add it to each course.")}</span></span>
           </label>
+          {!f.is_mandatory && (
+            <div>
+              <div className="ui-eyebrow" style={{ marginBottom: 8 }}>{t("Use in these courses")}</div>
+              {allCourses.length === 0 ? <div className="ui-muted">{t("No courses yet.")}</div> : (
+                <div className="ui-card" style={{ maxHeight: 220, overflow: 'auto' }}>
+                  {allCourses.map((c, i) => (
+                    <label key={c.id} className="flex cursor-pointer items-center gap-3 p-3" style={{ borderTop: i ? '1px solid var(--line)' : 0 }}>
+                      <input type="checkbox" checked={courseIds.includes(c.id)} style={{ accentColor: 'var(--brand)' }}
+                        onChange={(e) => setCourseIds(e.target.checked ? [...courseIds, c.id] : courseIds.filter((x) => x !== c.id))} />
+                      <span className="text-[13px]">{c.title}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <div className="ui-muted" style={{ marginTop: 4 }}>{courseIds.length} {t("selected. You can change this any time.")}</div>
+            </div>
+          )}
           <button className="ui-btn ui-btn-primary" disabled={!f.title.trim()} onClick={saveDetails}>{saving ? <BusyText>{t("Saving…")}</BusyText> : moduleId ? t("Save details") : t("Create module")}</button>
         </div>
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { adminDeleteModule, adminGetModule, adminUpdateModule, isUuid } from '@/lib/lms';
+import { adminDeleteModule, adminGetModule, adminSetModuleCourses, adminUpdateModule, isUuid } from '@/lib/lms';
 import { cleanText } from '@/lib/security';
 import { safeUrl } from '@/lib/validate';
 
@@ -30,7 +30,11 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (b.description !== undefined) patch.description = cleanText(String(b.description), 2000);
   if (b.thumbnail_url !== undefined) patch.thumbnail_url = safeUrl(b.thumbnail_url);
   if (b.is_mandatory !== undefined) patch.is_mandatory = b.is_mandatory === true;
-  const mod = await adminUpdateModule(id, patch);
+  if (Array.isArray(b.course_ids)) {
+    try { await adminSetModuleCourses(id, [...new Set(b.course_ids.map(String))].filter(isUuid)); }
+    catch { return NextResponse.json({ error: 'Could not update courses' }, { status: 400 }); }
+  }
+  const mod = Object.keys(patch).length ? await adminUpdateModule(id, patch) : await adminGetModule(id);
   if (!mod) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ module: mod });
 }
