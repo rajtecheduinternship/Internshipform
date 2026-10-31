@@ -502,7 +502,8 @@ html[lang="hi"] .learning-hero h2, html[lang="hi"] .page-heading h1 { line-heigh
 .public-desktop-nav a[aria-current="page"] { color: var(--brand); font-weight: 700; }
 .public-header-actions { display: flex; gap: 18px; align-items: center; }
 .public-header-actions { align-items: center; }
-.public-signin { display: flex; gap: 6px; align-items: center; font-size: .78rem; font-weight: 650; color: var(--brand); }
+.public-signin { color: var(--brand); border-color: var(--brand); }
+.public-signin:hover { background: var(--brand-soft); border-color: var(--brand); }
 .public-menu-button { display: none; }.public-mobile-menu { display: none; }
 .public-hero { max-width: 1280px; margin: auto; padding: 70px 32px 76px; display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); align-items: center; gap: 100px; }
 .public-kicker { display: inline-flex; align-items: center; gap: 9px; border: 1px solid #dae4d5; background: #edf3e7; color: var(--brand); font-size: .64rem; font-weight: 700; letter-spacing: .08em; border-radius: 6px; padding: 6px 10px; }
