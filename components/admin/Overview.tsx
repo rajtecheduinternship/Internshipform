@@ -1,5 +1,7 @@
 'use client';
 
+import LoadingState from '@/components/LoadingState';
+
 import { useCopy, useLang } from '@/components/help/i18n';
 import { useAdminCopy } from '@/components/admin/copy';
 
@@ -31,8 +33,7 @@ export default function OverviewTab({ onOpenCourse, recent }: { onOpenCourse: (c
   if (error) return <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6"><ErrorNote>{error}</ErrorNote></div>;
   if (!data) return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6 sm:px-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="ui-skeleton h-24" />)}</div>
-      <div className="ui-skeleton h-56" />
+      <LoadingState />
     </div>
   );
 
@@ -145,14 +146,14 @@ function VideoFunnel({ courseId, students }: { courseId: string; students: numbe
   }, [courseId]);
 
   if (error) return <ErrorNote>{error}</ErrorNote>;
-  if (!rows) return <div className="ui-skeleton h-16" />;
+  if (!rows) return <LoadingState compact />;
   if (!rows.length) return <div className="ui-muted">{t("This course has no published lectures yet.")}</div>;
   return (
     <div style={{ padding: '0.25rem 0' }}>
       <div className="ui-eyebrow" style={{ marginBottom: 8 }}>{t("Lecture by lecture ·")} {students} {t("enrolled")}</div>
       <div style={{ display: 'grid', gap: 10 }}>
         {rows.map((v) => (
-          <div key={v.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 120px 150px', gap: 12, alignItems: 'center' }}>
+          <div key={v.id} className="admin-lecture-stats" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 120px 150px', gap: 12, alignItems: 'center' }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.title}</div>
               <div className="ui-muted">{v.module_title}</div>

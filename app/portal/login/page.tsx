@@ -1,5 +1,7 @@
 'use client';
 
+import { BusyText } from '@/components/LoadingState';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -52,7 +54,7 @@ export default function StudentLoginPage() {
             <div><label className="ui-label" htmlFor="phone">{t('Mobile number', 'मोबाइल नंबर')}</label><input id="phone" type="tel" required inputMode="numeric" pattern="[0-9]{10}" maxLength={10} placeholder={t('Your 10-digit mobile number', 'अपना 10 अंकों का नंबर लिखें')} className="ui-field" autoComplete="username" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} aria-describedby={error === 'phone' ? 'login-error' : 'phone-hint'} aria-invalid={error === 'phone'} /><p id="phone-hint" className="ui-muted mt-2">{t('Use the number you entered in your application.', 'वही नंबर डालें जो आपने फॉर्म में दिया था।')}</p></div>
             <div><label className="ui-label" htmlFor="pw">{t('Password', 'पासवर्ड')}</label><div className="password-wrap"><input id="pw" type={showPassword ? 'text' : 'password'} required className="ui-field" autoComplete="current-password" placeholder={t('Enter your password', 'अपना पासवर्ड डालें')} value={password} onChange={(e) => setPassword(e.target.value)} aria-describedby="password-hint" /><button type="button" className="icon-button" aria-pressed={showPassword} aria-label={showPassword ? t('Hide password', 'पासवर्ड छिपाएँ') : t('Show password', 'पासवर्ड दिखाएँ')} onClick={() => setShowPassword(!showPassword)}><Icon name="eye" size={18} /></button></div></div>
             <div className="auth-hint" id="password-hint"><Icon name="help" size={17} /><span><strong>{t('First time here?', 'पहली बार आए हैं?')}</strong> {t('Once your application is approved, your first password is your college roll number. You can change it after signing in.', 'आवेदन मंज़ूर होने के बाद पहला पासवर्ड कॉलेज का रोल नंबर होगा। लॉगिन के बाद इसे बदल सकते हैं।')}</span></div>
-            <button type="submit" disabled={isLoading} className="ui-btn ui-btn-primary w-full">{isLoading ? t('Signing in…', 'लॉगिन हो रहा है…') : t('Sign in & start learning', 'लॉगिन करें और सीखें')}<Icon name="arrow" size={18} /></button>
+            <button type="submit" disabled={isLoading} className="ui-btn ui-btn-primary w-full">{isLoading ? <BusyText>{t('Signing in…', 'लॉगिन हो रहा है…')}</BusyText> : t('Sign in & start learning', 'लॉगिन करें और सीखें')}<Icon name="arrow" size={18} /></button>
           </form>
           <div className="auth-register">{t('Not registered for the internship yet?', 'अभी इंटर्नशिप का फॉर्म नहीं भरा है?')}<br /><Link href="/apply">{t('Apply for the internship', 'इंटर्नशिप का फॉर्म भरें')} →</Link></div>
         </div>

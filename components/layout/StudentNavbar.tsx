@@ -1,5 +1,7 @@
 'use client';
 
+import { Spinner } from '@/components/LoadingState';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -53,7 +55,7 @@ export default function StudentNavbar() {
           <div className="student-header-actions">
             <LangToggle />
             <span className="desktop-tour"><Walkthrough kind="student" storageKey="rts_tour_student" /></span>
-            {student && <button onClick={handleLogout} disabled={signingOut} className="icon-button" aria-label={t('Sign out', 'बाहर निकलें')} title={t('Sign out', 'बाहर निकलें')}><Icon name="logout" size={19} /></button>}
+            {student && <button onClick={handleLogout} disabled={signingOut} className="icon-button" aria-label={t('Sign out', 'बाहर निकलें')} title={t('Sign out', 'बाहर निकलें')}>{signingOut ? <Spinner /> : <Icon name="logout" size={19} />}</button>}
           </div>
         </div>
         {error && <p role="alert" className="text-center text-sm pb-2" style={{ color: 'var(--bad)' }}>{t('Could not sign out. Try again.', 'बाहर नहीं निकल पाए। फिर कोशिश करें।')}</p>}

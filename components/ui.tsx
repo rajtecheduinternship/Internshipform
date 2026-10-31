@@ -50,9 +50,10 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
 /** Course / video thumbnail with a neutral placeholder when none is set. */
 export function Thumb({ src, alt = '', w = 64, h = 40, fill = false }: { src?: string | null; alt?: string; w?: number; h?: number; fill?: boolean }) {
   const [failed, setFailed] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<string | null>(null);
   const style = { width: fill ? '100%' : w, height: fill ? '100%' : h };
   // eslint-disable-next-line @next/next/no-img-element
-  if (src && failed !== src) return <img src={src} alt={alt} width={w} height={h} className="ui-thumb" style={style} loading="lazy" onError={() => setFailed(src)} />;
+  if (src && failed !== src) return <img src={src} alt={alt} width={w} height={h} className={`ui-thumb ${loaded !== src ? 'ui-skeleton' : ''}`} style={style} loading="lazy" onLoad={() => setLoaded(src)} onError={() => setFailed(src)} />;
   return <div className="ui-thumb ui-thumb-fallback" style={style} aria-hidden><Icon name="book" size={fill ? 38 : 20} /></div>;
 }
 

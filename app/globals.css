@@ -542,3 +542,178 @@ html[lang="hi"] .learning-hero h2, html[lang="hi"] .page-heading h1 { line-heigh
 @keyframes notice-emphasis { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
 .admin-topbar-title { min-width: 0; }.admin-topbar-title strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.admin-topbar-actions { flex-shrink: 0; }
 @media (max-width: 360px) { .public-header .portal-brand small, .student-header .portal-brand small { display: none; }.notice-live { font-size: 0; gap: 0; }.notice-board-head { gap: 10px; }.notice-board-head > div { min-width: 0; }.admin-topbar { padding-inline: 12px; }.admin-topbar-actions { gap: 5px; }.admin-topbar .language-toggle button { padding-inline: 5px; } }
+
+/* Shared asynchronous feedback. Text remains visible even with reduced motion. */
+.ui-spinner { display: inline-block; width: 1.1em; height: 1.1em; flex-shrink: 0; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+.ui-busy-text, .ui-loading-label { display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
+.ui-loading { display: flex; flex-direction: column; justify-content: center; gap: 22px; min-height: 180px; padding: 24px; color: var(--brand); width: 100%; font-size: .875rem; }
+.ui-loading-compact { min-height: 88px; padding: 16px; gap: 0; }
+.ui-loading-preview { display: grid; gap: 10px; width: min(100%, 420px); align-self: center; }
+.ui-loading-preview .ui-skeleton { height: 14px; border-radius: 6px; background-image: linear-gradient(90deg, #dde6d9 15%, #f4f7f0 50%, #dde6d9 85%); }
+.ui-loading-preview .ui-skeleton:nth-child(2) { width: 82%; }
+.ui-loading-preview .ui-skeleton:nth-child(3) { width: 58%; }
+.notice-mobile-toggle { display: none; }
+.mobile-disclosure > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; list-style: none; font-weight: 650; font-size: .8rem; cursor: pointer; min-height: 44px; }
+.mobile-disclosure > summary::-webkit-details-marker { display: none; }
+.mobile-disclosure[open] > summary > svg { transform: rotate(90deg); }
+.video-loading-overlay { position: absolute; inset: 0; display: grid; place-content: center; background: #122d26ed; color: white; text-align: center; padding: 16px; z-index: 1; }
+.video-loading-overlay .ui-loading { color: white; min-height: 0; }
+.video-buffering { position: absolute; left: 12px; top: 12px; pointer-events: none; border-radius: 8px; background: #122d26e8; color: white; padding: 8px 12px; font-size: .8rem; }
+.admin-student-cards { display: none; }
+
+/* Mobile layouts are deliberately scoped: the desktop composition stays unchanged. */
+@media (max-width: 640px) {
+  .public-header-inner, .student-header-inner { min-height: 64px; padding-block: 8px; }
+  .public-header .icon-button, .student-header-actions .icon-button { width: 44px; min-height: 44px; }
+  .language-toggle button { min-height: 38px; }
+  .portal-main { padding: 20px 16px 28px; }
+  .page-heading { gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  .page-heading h1, .admin-context .page-heading h1 { font-size: 1.5rem; }
+  .page-heading p { line-height: 1.65; margin-top: 5px; }
+  .page-heading .ui-btn { padding-inline: 12px; }
+  .ui-card-pad { padding: 16px; }
+  .ui-card-head { padding: 14px 16px; flex-wrap: wrap; gap: 10px; }
+  .ui-card-head > div { min-width: 0; }
+  .ui-h1 { font-size: 1.35rem; }
+  .ui-h2 { overflow-wrap: anywhere; }
+  .ui-muted { overflow-wrap: anywhere; }
+  .ui-btn-sm { min-height: 44px; }
+  .ui-modal { max-height: calc(100dvh - 24px); overflow-y: auto; padding: 18px; }
+  .ui-drawer { max-width: 100%; }
+  .ui-loading { min-height: 150px; padding: 20px 16px; }
+  .ui-loading-compact { min-height: 80px; padding: 16px; }
+
+  .public-hero { padding: 24px 16px 28px; gap: 22px; }
+  .public-kicker { letter-spacing: .04em; font-size: .6rem; }
+  .home-hindi-highlight { margin-top: 12px; font-size: .85rem; }
+  .public-hero h1 { font-size: clamp(2rem, 8.3vw, 2.6rem); margin-top: 10px; line-height: 1.16; }
+  .public-hero-copy > p { font-size: .875rem; line-height: 1.65; margin-top: 12px; }
+  .public-hero-actions { display: grid; grid-template-columns: 1.25fr 1fr; gap: 8px; margin-top: 18px; }
+  .public-hero-actions .ui-btn { padding: 10px; min-height: 44px; font-size: .75rem; }
+  .public-hero-actions .ui-btn svg { display: none; }
+  .public-hero-notes { gap: 6px 12px; margin-top: 12px; font-size: .65rem; }
+  .public-hero-notes svg { width: 13px; }
+  .home-notice-board { border-radius: 14px; box-shadow: 3px 3px 0 #e9eee0; }
+  .notice-board-head { padding: 12px 14px; gap: 10px; }
+  .notice-bell { width: 34px; height: 34px; border-radius: 9px; }
+  .notice-bell svg { width: 20px; }
+  .notice-kicker { display: none; }
+  .notice-board-head h2 { font-size: 1rem; }
+  .notice-board-toolbar { padding: 8px 14px; }
+  .notice-board-toolbar p { font-size: .75rem; }
+  .notice-list { padding: 10px 12px; }
+  .notice-item { padding: 10px 12px; margin-bottom: 8px; }
+  .notice-item p { font-size: .8125rem; line-height: 1.6; }
+  .notice-item-meta { font-size: .625rem; margin-bottom: 5px; }
+  .notice-read-more { font-size: .75rem; min-height: 36px; margin-top: 2px; }
+  .notice-mobile-collapsed .notice-item:not(:first-child) { display: none; }
+  .notice-mobile-collapsed .notice-item:first-child { margin-bottom: 0; }
+  .notice-mobile-collapsed .notice-item p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .notice-mobile-collapsed .notice-read-more { display: none; }
+  .notice-mobile-collapsed .notice-viewport { max-height: none; overflow: hidden; }
+  .notice-mobile-open .notice-viewport { max-height: 50dvh; }
+  .notice-mobile-toggle { display: flex; align-items: center; justify-content: space-between; min-height: 44px; width: 100%; padding: 10px 16px; color: var(--brand); border-top: 1px solid var(--line); font-size: .8125rem; font-weight: 650; cursor: pointer; }
+  .notice-mobile-open .notice-mobile-toggle svg { transform: rotate(-90deg); }
+  .notice-board-footer { display: none; } /* The same registration/sign-in links are above and in navigation. */
+  .notice-empty { padding: 16px; text-align: left; }
+  .notice-empty > .stat-icon { display: none; }
+  .notice-empty h3 { margin-top: 0; font-size: .875rem; }
+  .notice-empty p { margin-top: 4px; }
+  .public-tracks { padding-block: 24px; }
+  .public-tracks .section-heading { gap: 10px; margin-bottom: 16px; }
+  .public-tracks .section-heading h2 { font-size: 1.35rem; }
+  .public-track-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .public-track-card { padding: 16px 12px; border-radius: 14px; }
+  .public-track-card .stat-icon { width: 36px; height: 36px; margin-bottom: 10px; }
+  .public-track-card h3 { font-size: .95rem; line-height: 1.4; margin-top: 6px; }
+  .public-track-card p { font-size: .8125rem; line-height: 1.6; margin-top: 8px; }
+  .public-track-card small { font-size: .65rem; margin: 0 0 4px; }
+  .public-track-card p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .public-support { padding: 20px; gap: 16px; margin-bottom: 28px; }
+  .public-support h2 { font-size: 1.3rem; }
+  .public-footer { padding: 26px 16px 20px; }
+  .course-jump-links { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px; }
+  .course-jump-links a { flex: 0 0 auto; max-width: 240px; font-size: .75rem; min-height: 44px; }
+  .course-syllabus { padding-block: 8px; }
+  .course-syllabus > div { padding-bottom: 10px; }
+
+  .learning-hero { min-height: 0; padding: 20px; border-radius: 16px; }
+  .learning-hero h2 { font-size: 1.45rem; max-width: none; margin: 10px 0 6px; }
+  .learning-hero p { max-width: none; line-height: 1.65; }
+  .hero-art { display: none; }
+  .hero-cta { margin-top: 16px; }
+  .hero-next { margin-top: 12px; }
+  .learning-stats { padding: 12px 0; border-radius: 12px; }
+  .learning-stats > div { flex-direction: row; gap: 8px; padding-inline: 10px; }
+  .learning-stats .stat-icon { display: none; }
+  .learning-stats strong { font-size: 1.2rem; }
+  .learning-stats small { font-size: .6875rem; line-height: 1.4; }
+  .lesson-toolbar { gap: 10px; }
+  .lesson-filters { display: flex; width: 100%; }
+  .lesson-filters button { flex: 1; min-height: 44px; padding-inline: 8px; }
+  .module-card summary { padding: 12px; gap: 10px; }
+  .module-number { width: 30px; height: 34px; }
+  .lesson-row { padding: 12px; gap: 8px; }
+  .lesson-status { max-width: 85px; }
+  .lesson-status .ui-badge { white-space: normal; font-size: .65rem; }
+  .learning-aside { gap: 14px; }
+  .progress-ring { width: 110px; height: 110px; margin-block: 14px; padding: 7px; }
+  .progress-ring strong { font-size: 1.7rem; }
+  .learning-steps { gap: 14px; margin-block: 16px; }
+  .help-card { padding: 16px; }
+  .watch-page .portal-main { padding-top: 14px; }
+  .watch-page .ui-h1 { font-size: 1.2rem; line-height: 1.5; }
+  .watch-page .watch-guidance { margin-top: 12px; padding: 12px; }
+  .watch-page .portal-main > .grid { gap: 16px; }
+  .auth-story { gap: 18px; padding: 18px 20px; }
+  .auth-story h1 { font-size: 1.45rem; }
+  .auth-story p { margin-top: 8px; line-height: 1.6; }
+  .auth-form-panel { padding: 18px 20px; }
+  .auth-form-wrap { padding-block: 22px; }
+  .auth-form-wrap h2 { font-size: 1.5rem; }
+  .account-avatar { width: 48px; height: 48px; margin-bottom: 12px; }
+  .application-steps { display: flex; flex-direction: row; overflow-x: auto; gap: 12px; margin-top: 12px; }
+  .application-steps a { flex: 0 0 auto; min-height: 44px; }
+  .application-aside .ui-card-pad { padding: 12px 16px; }
+  .application-aside .ui-progress { margin-top: 12px; }
+
+  .admin-topbar { min-height: 64px; padding: 8px 12px; }
+  .admin-context { padding: 20px 16px 0; }
+  .admin-context .page-heading { margin-bottom: 12px; }
+  .admin-action-strip > p { display: none; }
+  .admin-course-cover { aspect-ratio: 16/5; }
+  .admin-student-table { display: none; }
+  .admin-student-cards { display: grid; }
+  .admin-student-card { padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+  .admin-student-card:last-child { border-bottom: 0; }
+  .admin-student-card > button { min-height: 44px; text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .875rem; font-weight: 650; color: var(--brand); }
+  .admin-student-card > button span { overflow-wrap: anywhere; }
+  .admin-student-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: .75rem; color: var(--ink-2); }
+  .admin-lecture-stats { grid-template-columns: minmax(0,1fr) !important; gap: 6px !important; padding-block: 8px; border-bottom: 1px solid var(--line); }
+  .admin-student-courses { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 6px; }
+  .admin-student-courses button { flex: 0 0 auto; max-width: 220px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-spinner, .ui-skeleton { animation: none; }
+}
+.admin-enquiry-cards { display: none; }
+@media (max-width: 640px) {
+  .admin-enquiry-cards { display: grid; }
+  .admin-enquiry-table { display: none; }
+  .admin-enquiry-cards a { display: inline-flex; align-items: center; min-height: 44px; }
+  .admin-enquiry-cards .admin-student-meta { align-items: center; }
+}
+@media (max-width: 640px) {
+  /* Reach the lesson list sooner, rather than stacking two introductory panels. */
+  .learning-page .page-heading p, .learning-hero .hero-label, .learning-hero .hero-copy > p { display: none; }
+  .learning-hero { padding: 16px; }
+  .learning-hero h2 { font-size: 1.2rem; margin: 0; }
+  .learning-hero .hero-cta { margin-top: 12px; }
+  .learning-hero .hero-next { margin-top: 8px; font-size: .75rem; }
+  .public-info-card { display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 12px; row-gap: 6px; align-items: start; }
+  .public-info-card > .stat-icon { grid-row: 1 / 3; width: 36px; height: 36px; border-radius: 10px; }
+  .public-info-card > h2 { margin-top: 0; font-size: 1rem; }
+  .public-info-card > p { grid-column: 2; margin-top: 0; }
+  .admin-notice-row { flex-direction: column; gap: 10px; }
+  .admin-notice-row > div:last-child button { min-height: 44px; }
+}

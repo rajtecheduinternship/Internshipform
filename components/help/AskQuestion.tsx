@@ -1,5 +1,9 @@
 'use client';
 
+import LoadingState from '@/components/LoadingState';
+
+import { BusyText } from '@/components/LoadingState';
+
 import { useCallback, useEffect, useState } from 'react';
 import { useT, useLang } from './i18n';
 import { Badge, ErrorNote, timeAgo } from '@/components/ui';
@@ -14,10 +18,13 @@ export default function AskQuestion({ videoId }: { videoId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(() => {
-    fetch('/api/portal/questions').then((r) => (r.ok ? r.json() : { questions: [] }))
-      .then((d) => setItems(d.questions || [])).catch(() => undefined);
+    setLoading(true); setLoadError(false);
+    fetch('/api/portal/questions').then((r) => { if (!r.ok) throw new Error('questions'); return r.json(); })
+      .then((d) => setItems(d.questions || [])).catch(() => setLoadError(true)).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -50,9 +57,11 @@ export default function AskQuestion({ videoId }: { videoId: string }) {
           aria-label={t({ en: 'Your question', hi: 'आपका सवाल' })} placeholder={t({ en: 'Type your question…', hi: 'अपना सवाल यहाँ लिखिए…' })} />
         {error && <ErrorNote>{error}</ErrorNote>}
         {sent && <div role="status" className="text-[13px]" style={{ color: 'var(--ok)' }}>{t({ en: 'Sent. You will see the answer below.', hi: 'भेज दिया गया। जवाब नीचे दिखेगा।' })}</div>}
-        <button className="ui-btn ui-btn-primary" disabled={busy || text.trim().length < 5}>{busy ? t({ en: 'Sending…', hi: 'भेज रहे हैं…' }) : t({ en: 'Send question', hi: 'सवाल भेजें' })}</button>
+        <button className="ui-btn ui-btn-primary" disabled={busy || text.trim().length < 5}>{busy ? <BusyText>{t({ en: 'Sending…', hi: 'भेज रहे हैं…' })}</BusyText> : t({ en: 'Send question', hi: 'सवाल भेजें' })}</button>
       </form>
 
+      {loading && <LoadingState compact label={t({ en: 'Loading your questions', hi: 'आपके सवाल लोड हो रहे हैं' })} />}
+      {loadError && <ErrorNote>{t({ en: 'Your questions could not load.', hi: 'आपके सवाल नहीं खुल पाए।' })} <button className="ui-link" onClick={load}>{t({ en: 'Try again', hi: 'फिर कोशिश करें' })}</button></ErrorNote>}
       {(mine.length > 0 || others.length > 0) && (
         <div className="mt-5 space-y-3">
           <div className="ui-eyebrow">{t({ en: 'Your questions', hi: 'आपके सवाल' })}</div>

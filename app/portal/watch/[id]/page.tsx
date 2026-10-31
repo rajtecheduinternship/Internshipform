@@ -1,5 +1,7 @@
 'use client';
 
+import LoadingState from '@/components/LoadingState';
+
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import StudentNavbar from '@/components/layout/StudentNavbar';
@@ -44,9 +46,9 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   const loading = loadedId !== videoId;
 
   return (
-    <div className="ui-page student-page flex flex-col"><StudentNavbar /><main id="main-content" tabIndex={-1} className="portal-main space-y-5">
+    <div className="ui-page student-page watch-page flex flex-col"><StudentNavbar /><main id="main-content" tabIndex={-1} className="portal-main space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/portal/videos" className="ui-link">← {t('Back to my learning', 'मेरी पढ़ाई पर वापस')}</Link>{index >= 0 && <span className="ui-muted">{t('Lesson', 'पाठ')} {index + 1} / {lectures.length}</span>}</div>
-      {loading && <div role="status" aria-label={t('Loading lesson', 'पाठ लोड हो रहा है')} className="ui-skeleton aspect-video" />}
+      {loading && <LoadingState label={t('Loading lesson', 'पाठ लोड हो रहा है')} className="aspect-video" />}
       {!loading && !video && <div className="ui-card"><Empty title={t('This lesson could not be opened', 'यह पाठ नहीं खुल पाया')}>{t('Check your connection and try again. If this continues, ask your coordinator to check your course access.', 'इंटरनेट जाँचें और फिर कोशिश करें। परेशानी बनी रहे तो अपने शिक्षक से कोर्स की अनुमति जाँचने को कहें।')}<div className="mt-4"><button className="ui-btn" onClick={() => { setLoadedId(''); setAttempt((n) => n + 1); }}>{t('Try again', 'फिर कोशिश करें')}</button></div></Empty></div>}
       {!loading && video && student && <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-5">

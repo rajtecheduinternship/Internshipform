@@ -1,5 +1,9 @@
 'use client';
 
+import { BusyText } from '@/components/LoadingState';
+
+import LoadingState from '@/components/LoadingState';
+
 import { useAdminCopy } from '@/components/admin/copy';
 
 import { ReactNode, useCallback, useEffect, useState } from 'react';
@@ -24,6 +28,8 @@ export default function CoursesManager() {
   const t = useAdminCopy();
   const [view, setView] = useState<'courses' | 'modules'>('courses');
   const [courses, setCourses] = useState<Course[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
   const [modules, setModules] = useState<ModuleSummary[]>([]);
   const [error, setError] = useState('');
   const [editCourse, setEditCourse] = useState<string | 'new' | null>(null);
@@ -31,19 +37,20 @@ export default function CoursesManager() {
   const [confirm, setConfirm] = useState<Confirm>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const [c, m] = await Promise.all([
         api<{ courses: Course[] }>('/api/admin/courses'),
         api<{ modules: ModuleSummary[] }>('/api/admin/modules'),
       ]);
       setCourses(c.courses); setModules(m.modules); setError('');
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) { setError((e as Error).message); } finally { setLoading(false); }
   }, []);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const run = async (fn: () => Promise<unknown>) => {
-    try { await fn(); await load(); setError(''); } catch (e) { setError((e as Error).message); }
+    setWorking(true);
+    try { await fn(); await load(); setError(''); } catch (e) { setError((e as Error).message); } finally { setWorking(false); }
   };
   const doConfirm = async () => { const c = confirm; setConfirm(null); if (c) await run(c.run); };
 
@@ -61,10 +68,11 @@ export default function CoursesManager() {
           {view === 'courses' ? t("New course") : t("New module")}
         </button>
       </div>
+      {working && <LoadingState compact />}
       {error && <ErrorNote>{error}</ErrorNote>}
 
       {view === 'courses' && (
-        !courses && error ? null : !courses ? <div className="ui-skeleton h-40" /> : courses.length === 0 ? (
+        !courses && error ? null : !courses ? <LoadingState /> : courses.length === 0 ? (
           <div className="ui-card"><Empty title={t("No courses yet")}>{t("Create a course, then attach modules from the library.")}</Empty></div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -101,7 +109,7 @@ export default function CoursesManager() {
 
       {view === 'modules' && (
         <div className="ui-card">
-          {modules.length === 0 ? <Empty title={t("The library is empty")}>{t("Modules are shared building blocks that any course can use.")}</Empty> : modules.map((m, i) => (
+          {loading ? <LoadingState /> : modules.length === 0 ? <Empty title={t("The library is empty")}>{t("Modules are shared building blocks that any course can use.")}</Empty> : modules.map((m, i) => (
             <div key={m.id} className="flex flex-wrap items-center gap-3 p-4" style={{ borderTop: i ? '1px solid var(--line)' : 0 }}>
               <Thumb src={m.thumbnail_url} w={72} h={44} />
               <div className="min-w-0 flex-1">
@@ -154,27 +162,30 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
   const [attached, setAttached] = useState<string[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [courseId, setCourseId] = useState(id);
+  const [loading, setLoading] = useState(!!id);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     api<{ course: Course & { modules: { id: string }[] } }>(`/api/admin/courses/${id}`).then((d) => {
       setF({ title: d.course.title, description: d.course.description || '', thumbnail_url: d.course.thumbnail_url || '', duration_weeks: d.course.duration_weeks || 4 });
       setAttached(d.course.modules.map((m) => m.id));
-    }).catch((e) => setMsg({ ok: false, t: e.message }));
+    }).catch((e) => setMsg({ ok: false, t: e.message })).finally(() => setLoading(false));
   }, [id]);
 
   const saveDetails = async () => {
+    setSaving(true);
     try {
       if (courseId) await api(`/api/admin/courses/${courseId}`, 'PATCH', f);
       else { const r = await api<{ course: { id: string } }>('/api/admin/courses', 'POST', f); setCourseId(r.course.id); }
       setMsg({ ok: true, t: 'Saved' }); onChanged();
-    } catch (e) { setMsg({ ok: false, t: (e as Error).message }); }
+    } catch (e) { setMsg({ ok: false, t: (e as Error).message }); } finally { setSaving(false); }
   };
   const saveModules = async (next: string[]) => {
     if (!courseId) return;
-    setAttached(next);
+    setAttached(next); setSaving(true);
     try { await api(`/api/admin/courses/${courseId}`, 'PATCH', { module_ids: next }); setMsg({ ok: true, t: 'Saved' }); onChanged(); }
-    catch (e) { setMsg({ ok: false, t: (e as Error).message }); }
+    catch (e) { setMsg({ ok: false, t: (e as Error).message }); } finally { setSaving(false); }
   };
   const move = (i: number, d: number) => {
     const n = [...attached]; const j = i + d; if (j < 0 || j >= n.length) return;
@@ -187,7 +198,9 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
   return (
     <>
       <DrawerHead title={courseId ? (f.title || t("Edit course")) : t("New course")} sub="Course details and modules" onClose={onClose} />
-      <div className="space-y-5 p-5">
+      {saving && <LoadingState compact />}
+      {loading && <LoadingState />}
+      <fieldset disabled={loading || saving} aria-busy={loading || saving} className="space-y-5 p-5 min-w-0">
         <div className="space-y-3">
           <L label={t("Course name")}><input className="ui-field" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></L>
           <L label={t("Description")}><textarea className="ui-field" rows={3} placeholder={t("What does this course cover?")} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></L>
@@ -195,7 +208,7 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
             <L label={t("Thumbnail URL (https)")}><input className="ui-field" value={f.thumbnail_url} onChange={(e) => setF({ ...f, thumbnail_url: e.target.value })} /></L>
             <L label={t("Weeks")}><input className="ui-field" type="number" min={1} max={52} value={f.duration_weeks} onChange={(e) => setF({ ...f, duration_weeks: Number(e.target.value) })} /></L>
           </div>
-          <button className="ui-btn ui-btn-primary" disabled={!f.title.trim()} onClick={saveDetails}>{courseId ? t("Save details") : t("Create course")}</button>
+          <button className="ui-btn ui-btn-primary" disabled={!f.title.trim()} onClick={saveDetails}>{saving ? <BusyText>{t("Saving…")}</BusyText> : courseId ? t("Save details") : t("Create course")}</button>
         </div>
 
         <div>
@@ -243,7 +256,7 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
           )}
         </div>
         {msg && (msg.ok ? <div className="ui-muted" role="status">{t(msg.t)}</div> : <ErrorNote>{t(msg.t)}</ErrorNote>)}
-      </div>
+      </fieldset>
     </>
   );
 }
@@ -251,6 +264,8 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
 function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: () => void; onChanged: () => void }) {
   const t = useAdminCopy();
   const [moduleId, setModuleId] = useState(id);
+  const [loading, setLoading] = useState(!!id);
+  const [saving, setSaving] = useState(false);
   const [f, setF] = useState({ title: '', description: '', thumbnail_url: '', is_mandatory: false });
   const [videos, setVideos] = useState<AdminVideo[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
@@ -259,16 +274,18 @@ function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: 
   const [nv, setNv] = useState(blank);
 
   const reload = useCallback((mid: string) => {
-    api<{ module: ModuleSummary & { videos: AdminVideo[] } }>(`/api/admin/modules/${mid}`).then((d) => {
+    setLoading(true);
+    return api<{ module: ModuleSummary & { videos: AdminVideo[] } }>(`/api/admin/modules/${mid}`).then((d) => {
       setF({ title: d.module.title, description: d.module.description || '', thumbnail_url: d.module.thumbnail_url || '', is_mandatory: !!d.module.is_mandatory });
       setVideos(d.module.videos);
-    }).catch((e) => setMsg({ ok: false, t: e.message }));
+    }).catch((e) => setMsg({ ok: false, t: e.message })).finally(() => setLoading(false));
   }, []);
   useEffect(() => { if (id) reload(id); }, [id, reload]);
 
   const act = async (fn: () => Promise<unknown>, ok = 'Saved') => {
-    try { await fn(); setMsg({ ok: true, t: ok }); if (moduleId) reload(moduleId); onChanged(); }
-    catch (e) { setMsg({ ok: false, t: (e as Error).message }); }
+    setSaving(true);
+    try { await fn(); setMsg({ ok: true, t: ok }); if (moduleId) await reload(moduleId); onChanged(); }
+    catch (e) { setMsg({ ok: false, t: (e as Error).message }); } finally { setSaving(false); }
   };
   const saveDetails = () => act(async () => {
     if (moduleId) await api(`/api/admin/modules/${moduleId}`, 'PATCH', f);
@@ -278,7 +295,9 @@ function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: 
   return (
     <>
       <DrawerHead title={moduleId ? (f.title || t("Edit module")) : t("New module")} sub="Shared by every course that includes it" onClose={onClose} />
-      <div className="space-y-5 p-5">
+      {saving && <LoadingState compact />}
+      {loading && <LoadingState />}
+      <fieldset disabled={loading || saving} aria-busy={loading || saving} className="space-y-5 p-5 min-w-0">
         <div className="space-y-3">
           <L label={t("Module name")}><input className="ui-field" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></L>
           <L label={t("Description")}><textarea className="ui-field" rows={2} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></L>
@@ -287,7 +306,7 @@ function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: 
             <input type="checkbox" checked={f.is_mandatory} onChange={(e) => setF({ ...f, is_mandatory: e.target.checked })} style={{ marginTop: 3, accentColor: 'var(--brand)' }} />
             <span className="text-[13px]"><strong>{t("Common to all courses")}</strong><br /><span className="ui-muted">{t("Every student gets this module automatically, so you do not have to add it to each course.")}</span></span>
           </label>
-          <button className="ui-btn ui-btn-primary" disabled={!f.title.trim()} onClick={saveDetails}>{moduleId ? t("Save details") : t("Create module")}</button>
+          <button className="ui-btn ui-btn-primary" disabled={!f.title.trim()} onClick={saveDetails}>{saving ? <BusyText>{t("Saving…")}</BusyText> : moduleId ? t("Save details") : t("Create module")}</button>
         </div>
 
         {moduleId && (
@@ -341,7 +360,7 @@ function ModuleEditor({ id, onClose, onChanged }: { id: string | null; onClose: 
           </>
         )}
         {msg && (msg.ok ? <div className="ui-muted" role="status">{t(msg.t)}</div> : <ErrorNote>{t(msg.t)}</ErrorNote>)}
-      </div>
+      </fieldset>
       {confirm && (
         <ConfirmDialog title={`Delete “${confirm.title}”?`}
           body={<>{t("This permanently erases the progress of")} <strong>{confirm.watcher_count} {t("student")}{confirm.watcher_count === 1 ? '' : 's'}</strong> {t("on this video. Use Archive to hide it and keep progress.")}</>}
