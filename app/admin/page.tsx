@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { Icon, IconName } from '@/components/icons';
 import { Badge, ConfirmDialog, useDialogFocus } from '@/components/ui';
 import JSZip from 'jszip';
+import ClassesManager from '@/components/admin/ClassesManager';
 import CoursesManager from '@/components/admin/CoursesManager';
 import StudentsManager from '@/components/admin/StudentsManager';
 import OverviewTab from '@/components/admin/Overview';
@@ -78,7 +79,7 @@ export default function AdminPage() {
   const [bulkMsg, setBulkMsg] = useState('');
 
   // Tab & Extended Admin state
-  type AdminTab = 'analytics' | 'applications' | 'enquiries' | 'news' | 'courses' | 'students' | 'questions';
+  type AdminTab = 'classes' | 'analytics' | 'applications' | 'enquiries' | 'news' | 'courses' | 'students' | 'questions';
   const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [openQuestions, setOpenQuestions] = useState(0);
@@ -515,6 +516,7 @@ export default function AdminPage() {
     { key: 'analytics', label: 'Overview', hindi: 'एक नज़र में', icon: 'grid', description: copy('Your internship, at a glance.', 'आपकी इंटर्नशिप, एक नज़र में।'), hint: copy('See how learning is going and where your students need support.', 'देखें कि पढ़ाई कैसी चल रही है और किन छात्रों को मदद चाहिए।') },
     { key: 'students', label: 'Students', hindi: 'छात्र', icon: 'users', description: copy('Find and support your students.', 'छात्रों को खोजें और मदद करें।'), hint: copy('Find a student, assign a course, or check their lesson progress.', 'छात्र खोजें, कोर्स जोड़ें या उनकी पढ़ाई की प्रगति देखें।') },
     { key: 'courses', label: 'Courses & lessons', hindi: 'कोर्स और पाठ', icon: 'book', description: copy('Manage courses and lessons.', 'कोर्स और पाठ सँभालें।'), hint: copy('Create a course, add modules, then publish lessons for your students.', 'कोर्स बनाएँ, उसमें भाग जोड़ें, फिर छात्रों के लिए पाठ प्रकाशित करें।') },
+    { key: 'classes', label: 'Online classes', hindi: 'ऑनलाइन कक्षाएँ', icon: 'clock', description: copy('Schedule live classes.', 'लाइव कक्षाएँ तय करें।'), hint: copy('Publish Google Meet classes for a course or module.', 'कोर्स या मॉड्यूल के लिए Google Meet कक्षाएँ प्रकाशित करें।') },
     { key: 'questions', label: 'Student questions', hindi: 'छात्रों के सवाल', icon: 'message', count: openQuestions || undefined, description: copy('Answer your students’ questions.', 'छात्रों के सवालों के जवाब दें।'), hint: copy('Reply in simple Hindi or English. Students see your answer below their lesson.', 'सरल हिन्दी या अंग्रेज़ी में जवाब दें। छात्रों को जवाब उनके पाठ के नीचे दिखेगा।') },
     { key: 'applications', label: 'Applications', hindi: 'आवेदन', icon: 'file', count: pendingCount, description: copy('Review internship applications.', 'इंटर्नशिप के आवेदन देखें।'), hint: copy('Review applications and approve or reject admission. Students cannot learn until you approve.', 'आवेदन जाँचें और प्रवेश मंज़ूर या नामंज़ूर करें। आपकी मंज़ूरी के बिना छात्र पढ़ाई शुरू नहीं कर सकते।') },
     { key: 'enquiries', label: 'Enquiries', hindi: 'पूछताछ', icon: 'help', count: enquiries.length, description: copy('Respond to student enquiries.', 'छात्रों की पूछताछ का जवाब दें।'), hint: copy('Find students who need more information and help them get started.', 'जानकारी चाहने वाले छात्रों से संपर्क करें और शुरू करने में मदद करें।') },
@@ -571,6 +573,7 @@ export default function AdminPage() {
           {activeTab === 'analytics' && openQuestions > 0 && <div className="admin-alert mt-5"><Icon name="message" size={19} /><span>{copy(`${openQuestions} student question${openQuestions === 1 ? ' is' : 's are'} waiting for your reply.`, `${openQuestions} छात्रों के सवाल आपके जवाब का इंतज़ार कर रहे हैं।`)}</span><button onClick={() => selectTab('questions')}>{copy('Answer questions', 'सवालों के जवाब दें')} →</button></div>}
         </section>
         <div key={refreshKey}>
+      {activeTab === 'classes' && <ClassesManager />}
       {activeTab === 'courses' && <CoursesManager />}
       {activeTab === 'questions' && <QuestionsManager onChanged={refreshOpenQuestions} />}
       {activeTab === 'students' && <StudentsManager key={studentCourse} initialCourse={studentCourse} />}

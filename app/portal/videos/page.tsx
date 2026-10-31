@@ -1,5 +1,6 @@
 'use client';
 
+import StudentClasses from '@/components/classes/StudentClasses';
 import LoadingState from '@/components/LoadingState';
 
 import { useCallback, useEffect, useState } from 'react';
@@ -60,6 +61,7 @@ export default function VideoLibraryPage() {
           <div className="heading-note"><span className="status-dot" />{t('Your space to grow', 'सीखने और आगे बढ़ने की जगह')}</div>
         </div>
 
+        {student && <StudentClasses />}
         {loading ? <LoadingState label={t('Loading your course', 'आपका कोर्स लोड हो रहा है')} /> : error ? (
           <div className="ui-card ui-card-pad space-y-4"><ErrorNote>{t('Your lessons could not load. Check your connection and try again.', 'पाठ नहीं खुल पाए। इंटरनेट जाँचें और फिर कोशिश करें।')}</ErrorNote><button onClick={load} className="ui-btn">{t('Try again', 'फिर कोशिश करें')}</button></div>
         ) : !course ? (
