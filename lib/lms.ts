@@ -472,8 +472,10 @@ export async function adminListStudents() {
 export async function adminStudentDetail(studentId: string) {
   if (!isUuid(studentId)) return null;
   const p = await pool().query(
-    `SELECT p.id, p.full_name, p.email, p.phone, p.college, p.roll_number, p.last_login_at, p.course_id, p.application_id
-       FROM profiles p WHERE p.id = $1 AND p.role = 'student'`,
+    `SELECT p.id, p.full_name, p.email, p.phone, p.college, p.roll_number, p.last_login_at, p.course_id, p.application_id,
+            a.father_name, a.mother_name, a.gender, a.date_of_birth::text AS date_of_birth, a.address, a.whatsapp_number
+       FROM profiles p LEFT JOIN internship_applications a ON a.id = p.application_id
+      WHERE p.id = $1 AND p.role = 'student'`,
     [studentId]
   );
   if (!p.rows[0]) return null;
@@ -481,16 +483,55 @@ export async function adminStudentDetail(studentId: string) {
   return { profile: p.rows[0], course };
 }
 
-export async function adminSetStudentCourse(studentId: string, courseId: string | null) {
-  const r = await pool().query(
-    `UPDATE profiles SET course_id = $2 WHERE id = $1 AND role = 'student' RETURNING application_id`,
-    [studentId, courseId]
-  );
-  if (!r.rows[0]) return false;
-  if (r.rows[0].application_id) {
-    await pool().query(`UPDATE internship_applications SET course_id = $2 WHERE id = $1`, [r.rows[0].application_id, courseId]);
+export interface StudentEdit {
+  full_name?: string; phone?: string; email?: string; college?: string; roll_number?: string;
+  father_name?: string; mother_name?: string; gender?: string; date_of_birth?: string; address?: string; whatsapp_number?: string;
+  course_id?: string | null;
+  /** Pre-hashed password. Setting it also signs the student out everywhere. */
+  password_hash?: string;
+}
+
+/** Profile columns -> the matching application columns, so the two records never drift apart. */
+const PROFILE_COLS: Record<string, string> = { full_name: 'full_name', phone: 'phone', email: 'email', college: 'college', roll_number: 'roll_number' };
+const APP_COLS: Record<string, string> = {
+  full_name: 'student_name', phone: 'contact_number', email: 'email_address', college: 'college_name', roll_number: 'university_roll_number',
+  father_name: 'father_name', mother_name: 'mother_name', gender: 'gender', date_of_birth: 'date_of_birth', address: 'address',
+  whatsapp_number: 'whatsapp_number', course_id: 'course_id',
+};
+
+/** Returns false if the student does not exist. Throws the pg error (23505 = duplicate, 23503 = unknown course). */
+export async function adminUpdateStudent(studentId: string, edit: StudentEdit): Promise<boolean> {
+  if (!isUuid(studentId)) return false;
+  const client = await pool().connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query(`SELECT application_id FROM profiles WHERE id = $1 AND role = 'student' FOR UPDATE`, [studentId]);
+    if (!cur.rows[0]) { await client.query('ROLLBACK'); return false; }
+    const applicationId: string | null = cur.rows[0].application_id;
+
+    const sets: string[] = []; const vals: unknown[] = [studentId];
+    const put = (col: string, v: unknown) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
+    for (const [k, col] of Object.entries(PROFILE_COLS)) if ((edit as Record<string, unknown>)[k] !== undefined) put(col, (edit as Record<string, unknown>)[k]);
+    if (edit.course_id !== undefined) put('course_id', edit.course_id);
+    if (edit.password_hash) { put('password_hash', edit.password_hash); sets.push('token_version = token_version + 1'); }
+    if (sets.length) await client.query(`UPDATE profiles SET ${sets.join(', ')} WHERE id = $1`, vals);
+
+    if (applicationId) {
+      const aSets: string[] = []; const aVals: unknown[] = [applicationId];
+      for (const [k, col] of Object.entries(APP_COLS)) {
+        const v = (edit as Record<string, unknown>)[k];
+        if (v !== undefined) { aVals.push(v); aSets.push(`${col} = $${aVals.length}`); }
+      }
+      if (aSets.length) await client.query(`UPDATE internship_applications SET ${aSets.join(', ')} WHERE id = $1`, aVals);
+    }
+    await client.query('COMMIT');
+    return true;
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
   }
-  return true;
 }
 
 export async function adminAnalytics() {

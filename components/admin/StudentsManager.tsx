@@ -18,7 +18,8 @@ interface CourseOpt { id: string; title: string; student_count: number }
 interface DetailVideo { id: string; title: string; duration_seconds: number; thumbnail_url: string | null;
   progress: null | { completion_percentage: number; is_completed: boolean; total_seconds_watched: number } }
 interface Detail {
-  profile: { id: string; full_name: string; phone: string; email: string; college: string | null; roll_number: string | null; course_id: string | null; last_login_at: string | null };
+  profile: { id: string; full_name: string; phone: string; email: string; college: string | null; roll_number: string | null; course_id: string | null; last_login_at: string | null;
+    father_name: string | null; mother_name: string | null; gender: string | null; date_of_birth: string | null; address: string | null; whatsapp_number: string | null };
   course: null | { title: string; modules: { id: string; title: string; videos: DetailVideo[] }[] };
 }
 
@@ -178,6 +179,59 @@ function RailItem({ active, label, n, onClick }: { active: boolean; label: strin
   );
 }
 
+const EDIT_FIELDS: { key: string; label: string; type?: string; wide?: boolean }[] = [
+  { key: 'full_name', label: 'Student name' }, { key: 'father_name', label: "Father's name" }, { key: 'mother_name', label: "Mother's name" },
+  { key: 'gender', label: 'Gender' }, { key: 'date_of_birth', label: 'Date of birth', type: 'date' }, { key: 'phone', label: 'Phone (sign-in ID)', type: 'tel' },
+  { key: 'whatsapp_number', label: 'WhatsApp number', type: 'tel' }, { key: 'email', label: 'Email', type: 'email' }, { key: 'college', label: 'College' },
+  { key: 'roll_number', label: 'Roll number' }, { key: 'address', label: 'Address', wide: true },
+];
+
+function EditStudent({ id, profile, onSaved }: { id: string; profile: Detail['profile']; onSaved: () => void }) {
+  const t = useAdminCopy();
+  const start = () => Object.fromEntries(EDIT_FIELDS.map((f) => [f.key, String((profile as unknown as Record<string, unknown>)[f.key] ?? '')]));
+  const [open, setOpen] = useState(false);
+  const [vals, setVals] = useState<Record<string, string>>(start);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const send = async (body: Record<string, unknown>, done: string) => {
+    setBusy(true); setMsg(null);
+    try { await api(`/api/admin/students/${id}`, 'PATCH', body); setMsg({ ok: true, text: done }); setPassword(''); onSaved(); }
+    catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
+  };
+  const saveDetails = () => {
+    const original = start();
+    const changed = Object.fromEntries(Object.entries(vals).filter(([k, v]) => v !== original[k]));
+    if (!Object.keys(changed).length) { setMsg({ ok: false, text: t('Nothing has changed.') }); return; }
+    void send(changed, t('Details saved.'));
+  };
+
+  if (!open) return <button className="ui-btn ui-btn-sm" onClick={() => setOpen(true)}>{t('Edit student details & password')}</button>;
+  return (
+    <div className="ui-card ui-card-pad space-y-4">
+      <div className="flex items-center justify-between"><div className="ui-eyebrow">{t('Edit student')}</div><button className="ui-link" onClick={() => setOpen(false)}>{t('Hide')}</button></div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {EDIT_FIELDS.map((f) => <div key={f.key} className={f.wide ? 'sm:col-span-2' : ''}>
+          <label className="ui-label" htmlFor={`edit-${f.key}`}>{t(f.label)}</label>
+          <input id={`edit-${f.key}`} className="ui-field" type={f.type || 'text'} value={vals[f.key]} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
+        </div>)}
+      </div>
+      <div className="ui-muted">{t('Phone and email are also updated on the original application. The student signs in with the phone number.')}</div>
+      <button className="ui-btn ui-btn-primary" disabled={busy} onClick={saveDetails}>{t('Save details')}</button>
+      <div className="space-y-2" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+        <label className="ui-label" htmlFor="edit-password">{t('New password')}</label>
+        <input id="edit-password" className="ui-field" type="text" autoComplete="off" placeholder={t('At least 6 characters')} value={password} onChange={(e) => setPassword(e.target.value)} />
+        <div className="flex flex-wrap gap-2">
+          <button className="ui-btn ui-btn-sm" disabled={busy || password.length < 6} onClick={() => send({ password }, t('Password changed. The student was signed out everywhere.'))}>{t('Set password')}</button>
+          <button className="ui-btn ui-btn-sm" disabled={busy} onClick={() => { if (window.confirm(t('Reset the password back to the student’s roll number?'))) void send({ reset_password: true }, t('Password reset to the roll number.')); }}>{t('Reset to roll number')}</button>
+        </div>
+      </div>
+      {msg && <p role="status" className="text-sm" style={{ color: msg.ok ? 'var(--ok)' : 'var(--bad)' }}>{msg.text}</p>}
+    </div>
+  );
+}
+
 function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; courses: CourseOpt[]; onClose: () => void; onChanged: () => void }) {
   const t = useAdminCopy();
   const { lang } = useLang();
@@ -222,6 +276,8 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
               <Field label={t("Roll number")} value={d.profile.roll_number || '—'} />
               <Field label={t("Last sign-in")} value={timeAgo(d.profile.last_login_at, lang)} />
             </dl>
+
+            <EditStudent key={id} id={id} profile={d.profile} onSaved={() => { void reload(); onChanged(); }} />
 
             <div>
               <label className="ui-label" htmlFor="stu-course">{t("Course")}</label>
