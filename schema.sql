@@ -345,3 +345,6 @@ DO $$ DECLARE client_role TEXT; BEGIN
   END LOOP;
 END $$;
 COMMIT;
+
+-- Modules can be unpublished (hidden from students)
+ALTER TABLE modules ADD COLUMN IF NOT EXISTS is_published BOOLEAN NOT NULL DEFAULT true;

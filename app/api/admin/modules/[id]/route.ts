@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { adminDeleteModule, adminGetModule, adminSetModuleCourses, adminUpdateModule, isUuid } from '@/lib/lms';
+import { adminDeleteModule, adminGetModule, adminReorderVideos, adminSetModuleCourses, adminUpdateModule, isUuid } from '@/lib/lms';
 import { cleanText } from '@/lib/security';
 import { safeUrl } from '@/lib/validate';
 
@@ -30,6 +30,11 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (b.description !== undefined) patch.description = cleanText(String(b.description), 2000);
   if (b.thumbnail_url !== undefined) patch.thumbnail_url = safeUrl(b.thumbnail_url);
   if (b.is_mandatory !== undefined) patch.is_mandatory = b.is_mandatory === true;
+  if (b.is_published !== undefined) patch.is_published = b.is_published === true;
+  if (Array.isArray(b.video_order)) {
+    try { await adminReorderVideos(id, [...new Set(b.video_order.map(String))].filter(isUuid)); }
+    catch { return NextResponse.json({ error: 'Could not reorder videos' }, { status: 400 }); }
+  }
   if (Array.isArray(b.course_ids)) {
     try { await adminSetModuleCourses(id, [...new Set(b.course_ids.map(String))].filter(isUuid)); }
     catch { return NextResponse.json({ error: 'Could not update courses' }, { status: 400 }); }
