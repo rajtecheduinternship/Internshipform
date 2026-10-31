@@ -15,7 +15,7 @@ interface Course {
   duration_weeks: number | null; duration_hours: number | null; is_published: boolean; module_count: number; student_count: number;
 }
 interface ModuleSummary {
-  id: string; title: string; description: string | null; thumbnail_url: string | null; video_count: number; is_mandatory: boolean;
+  id: string; title: string; description: string | null; thumbnail_url: string | null; video_count: number; is_mandatory: boolean; is_published: boolean;
   courses: { id: string; title: string }[];
 }
 interface AdminVideo {
@@ -113,7 +113,7 @@ export default function CoursesManager() {
             <div key={m.id} className="flex flex-wrap items-center gap-3 p-4" style={{ borderTop: i ? '1px solid var(--line)' : 0 }}>
               <Thumb src={m.thumbnail_url} w={72} h={44} />
               <div className="min-w-0 flex-1">
-                <div style={{ fontWeight: 600 }}>{m.title}{m.is_mandatory && <span style={{ marginLeft: 8 }}><Badge tone="brand">{t("Common to all courses")}</Badge></span>}</div>
+                <div style={{ fontWeight: 600 }}>{m.title}{m.is_mandatory && <span style={{ marginLeft: 8 }}><Badge tone="brand">{t("Common to all courses")}</Badge></span>}{!m.is_published && <span style={{ marginLeft: 8 }}><Badge tone="warn">{t("Unpublished")}</Badge></span>}</div>
                 <div className="ui-muted">{m.video_count} {t("videos ·")} {m.is_mandatory ? t("Shown to every student") : m.courses.length ? `Used in ${m.courses.map((c) => c.title).join(', ')}` : t("Not used in any course yet")}</div>
               </div>
               <button className="ui-btn ui-btn-sm" onClick={() => setEditModule(m.id)}>{t("Edit & videos")}</button>
@@ -269,17 +269,21 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
   const [f, setF] = useState({ title: '', description: '', thumbnail_url: '', is_mandatory: false });
+  const [modPublished, setModPublished] = useState(true);
+  const [editVid, setEditVid] = useState<string | null>(null);
+  const [ev, setEv] = useState({ title: '', youtube_url: '', duration_minutes: '', description: '', thumbnail_url: '', required_watch_percent: 90 });
   const [courseIds, setCourseIds] = useState<string[]>([]);
   const [videos, setVideos] = useState<AdminVideo[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [confirm, setConfirm] = useState<AdminVideo | null>(null);
-  const blank = { title: '', youtube_url: '', duration_minutes: '', description: '', thumbnail_url: '', required_watch_percent: 90 };
+  const blank = { title: '', youtube_url: '', duration_minutes: '', description: '', thumbnail_url: '', required_watch_percent: 90, publish: false };
   const [nv, setNv] = useState(blank);
 
   const reload = useCallback((mid: string) => {
     setLoading(true);
     return api<{ module: ModuleSummary & { videos: AdminVideo[]; course_ids: string[] } }>(`/api/admin/modules/${mid}`).then((d) => {
       setF({ title: d.module.title, description: d.module.description || '', thumbnail_url: d.module.thumbnail_url || '', is_mandatory: !!d.module.is_mandatory });
+      setModPublished(d.module.is_published !== false);
       setVideos(d.module.videos); setCourseIds(d.module.course_ids || []);
     }).catch((e) => setMsg({ ok: false, t: e.message })).finally(() => setLoading(false));
   }, []);
@@ -289,6 +293,17 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
     setSaving(true);
     try { await fn(); setMsg({ ok: true, t: ok }); if (moduleId) await reload(moduleId); onChanged(); }
     catch (e) { setMsg({ ok: false, t: (e as Error).message }); } finally { setSaving(false); }
+  };
+  const startEdit = (v: AdminVideo) => {
+    setEditVid(v.id);
+    setEv({ title: v.title, youtube_url: v.youtube_video_id, duration_minutes: String(Math.round((v.duration_seconds / 60) * 10) / 10), description: v.description || '', thumbnail_url: v.thumbnail_url || '', required_watch_percent: v.required_watch_percent });
+  };
+  const move = (idx: number, dir: -1 | 1) => {
+    const live = videos.filter((x) => !x.archived_at).map((x) => x.id);
+    const j = idx + dir;
+    if (j < 0 || j >= live.length) return;
+    [live[idx], live[j]] = [live[j], live[idx]];
+    act(() => api(`/api/admin/modules/${moduleId}`, 'PATCH', { video_order: live }), 'Order saved');
   };
   const saveDetails = () => act(async () => {
     if (moduleId) await api(`/api/admin/modules/${moduleId}`, 'PATCH', { ...f, course_ids: courseIds });
@@ -326,6 +341,12 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
               <div className="ui-muted" style={{ marginTop: 4 }}>{courseIds.length} {t("selected. You can change this any time.")}</div>
             </div>
           )}
+          {moduleId && (
+            <div className="flex items-center justify-between gap-3 rounded-md p-3" style={{ background: 'var(--brand-soft)' }}>
+              <span className="text-[13px]"><strong>{modPublished ? t("Published") : t("Unpublished")}</strong><br /><span className="ui-muted">{modPublished ? t("Students can see this module.") : t("Hidden from every student until you publish it.")}</span></span>
+              <button type="button" className="ui-btn ui-btn-sm" onClick={() => act(() => api(`/api/admin/modules/${moduleId}`, 'PATCH', { is_published: !modPublished }), modPublished ? 'Module unpublished' : 'Module published')}>{modPublished ? t("Unpublish module") : t("Publish module")}</button>
+            </div>
+          )}
           <button className="ui-btn ui-btn-primary" disabled={!f.title.trim()} onClick={saveDetails}>{saving ? <BusyText>{t("Saving…")}</BusyText> : moduleId ? t("Save details") : t("Create module")}</button>
         </div>
 
@@ -335,8 +356,14 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
               <div className="ui-eyebrow" style={{ marginBottom: 8 }}>{t("Videos")}</div>
               <div className="ui-card" style={{ overflow: 'hidden' }}>
                 {videos.length === 0 && <div className="ui-muted p-4">{t("No videos yet. Add the first one below.")}</div>}
-                {videos.map((v, i) => (
+                {videos.map((v, i) => { const li = videos.filter((x) => !x.archived_at).findIndex((x) => x.id === v.id); const liveCount = videos.filter((x) => !x.archived_at).length; return (
                   <div key={v.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5" style={{ borderTop: i ? '1px solid var(--line)' : 0, opacity: v.archived_at ? 0.65 : 1 }}>
+                    {!v.archived_at && (
+                      <div className="flex flex-col">
+                        <button type="button" className="ui-btn ui-btn-sm" aria-label={t("Move up")} disabled={li === 0} onClick={() => move(li, -1)}>↑</button>
+                        <button type="button" className="ui-btn ui-btn-sm" aria-label={t("Move down")} disabled={li === liveCount - 1} onClick={() => move(li, 1)}>↓</button>
+                      </div>
+                    )}
                     <Thumb src={v.thumbnail_url || `https://i.ytimg.com/vi/${v.youtube_video_id}/mqdefault.jpg`} w={64} h={36} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px]" style={{ fontWeight: 600 }}>{v.title}
@@ -346,12 +373,35 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
                       <div className="ui-muted tnum">{Math.round(v.duration_seconds / 60)} {t("min ·")} {v.required_watch_percent}{t("% to complete ·")} {v.watcher_count} {t("students")}</div>
                     </div>
                     <div className="flex gap-1">
+                      <button className="ui-btn ui-btn-sm" onClick={() => (editVid === v.id ? setEditVid(null) : startEdit(v))}>{editVid === v.id ? t("Close") : t("Edit")}</button>
                       <button className="ui-btn ui-btn-sm" onClick={() => act(() => api(`/api/admin/videos/${v.id}`, 'PATCH', { is_published: !v.is_published }))}>{v.is_published ? t("Unpublish") : t("Publish")}</button>
                       <button className="ui-btn ui-btn-sm" onClick={() => act(() => api(`/api/admin/videos/${v.id}`, 'PATCH', { archived: !v.archived_at }))}>{v.archived_at ? t("Restore") : t("Archive")}</button>
                       <button className="ui-btn ui-btn-sm ui-btn-danger" onClick={() => setConfirm(v)}>{t("Delete")}</button>
                     </div>
+                    {editVid === v.id && (
+                      <form className="w-full space-y-3 pt-2" onSubmit={(e) => {
+                        e.preventDefault();
+                        act(async () => {
+                          await api(`/api/admin/videos/${v.id}`, 'PATCH', {
+                            title: ev.title, youtube_url: ev.youtube_url, description: ev.description, thumbnail_url: ev.thumbnail_url,
+                            duration_seconds: Math.round(Number(ev.duration_minutes) * 60), required_watch_percent: ev.required_watch_percent,
+                          });
+                          setEditVid(null);
+                        }, 'Video updated');
+                      }}>
+                        <L label={t("Title")}><input className="ui-field" required value={ev.title} onChange={(e) => setEv({ ...ev, title: e.target.value })} /></L>
+                        <L label={t("YouTube link or ID")}><input className="ui-field" required value={ev.youtube_url} onChange={(e) => setEv({ ...ev, youtube_url: e.target.value })} /></L>
+                        <div className="grid grid-cols-2 gap-3">
+                          <L label={t("Duration (minutes)")}><input className="ui-field" type="number" step="0.1" min="0.1" required value={ev.duration_minutes} onChange={(e) => setEv({ ...ev, duration_minutes: e.target.value })} /></L>
+                          <L label={t("Watch % to complete")}><input className="ui-field" type="number" min={1} max={100} value={ev.required_watch_percent} onChange={(e) => setEv({ ...ev, required_watch_percent: Number(e.target.value) })} /></L>
+                        </div>
+                        <L label={t("Thumbnail URL (optional)")}><input className="ui-field" value={ev.thumbnail_url} onChange={(e) => setEv({ ...ev, thumbnail_url: e.target.value })} /></L>
+                        <L label={t("Description")}><textarea className="ui-field" rows={2} value={ev.description} onChange={(e) => setEv({ ...ev, description: e.target.value })} /></L>
+                        <button className="ui-btn ui-btn-primary">{t("Save video")}</button>
+                      </form>
+                    )}
                   </div>
-                ))}
+                ); })}
               </div>
             </div>
 
@@ -361,7 +411,7 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
                 await api('/api/admin/videos', 'POST', {
                   module_id: moduleId, title: nv.title, youtube_url: nv.youtube_url, description: nv.description,
                   thumbnail_url: nv.thumbnail_url, duration_seconds: Math.round(Number(nv.duration_minutes) * 60),
-                  required_watch_percent: nv.required_watch_percent,
+                  required_watch_percent: nv.required_watch_percent, is_published: nv.publish,
                 });
                 setNv(blank);
               }, t("Video added"));
@@ -375,6 +425,10 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
               </div>
               <L label={t("Thumbnail URL (optional)")}><input className="ui-field" value={nv.thumbnail_url} onChange={(e) => setNv({ ...nv, thumbnail_url: e.target.value })} /></L>
               <L label={t("Description")}><textarea className="ui-field" rows={2} value={nv.description} onChange={(e) => setNv({ ...nv, description: e.target.value })} /></L>
+              <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+                <input type="checkbox" checked={nv.publish} onChange={(e) => setNv({ ...nv, publish: e.target.checked })} style={{ accentColor: 'var(--brand)' }} />
+                {t("Publish right away (otherwise it is saved as a draft)")}
+              </label>
               <button className="ui-btn ui-btn-primary">{t("Add video")}</button>
             </form>
           </>

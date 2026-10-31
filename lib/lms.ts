@@ -83,7 +83,7 @@ export async function getStudentCourse(courseId: string | null | undefined, stud
   const mods = await pool().query(
     `SELECT m.id, m.title, m.description, m.thumbnail_url, m.is_mandatory, COALESCE(cm.order_index, 0) AS order_index
        FROM modules m LEFT JOIN course_modules cm ON cm.module_id = m.id AND cm.course_id = $1
-      WHERE m.is_mandatory OR cm.course_id IS NOT NULL
+      WHERE m.is_published AND (m.is_mandatory OR cm.course_id IS NOT NULL)
       ORDER BY m.is_mandatory DESC, cm.order_index ASC NULLS LAST, m.created_at ASC`,
     [courseId]
   );
@@ -92,7 +92,7 @@ export async function getStudentCourse(courseId: string | null | undefined, stud
             v.duration_seconds, v.required_watch_percent, v.order_index, v.is_published,
             p.total_seconds_watched, p.completion_percentage, p.is_completed, p.last_watched_position
        FROM videos v
-       JOIN modules mm ON mm.id = v.module_id AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $1))
+       JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $1))
        LEFT JOIN video_progress p ON p.video_id = v.id AND p.student_id = $2
       WHERE v.is_published = true AND v.archived_at IS NULL
       ORDER BY v.order_index ASC, v.created_at ASC`,
@@ -133,7 +133,7 @@ export async function getVideoForStudent(videoId: string, courseId: string | nul
             p.id AS p_id, p.total_seconds_watched, p.completion_percentage, p.is_completed,
             p.last_watched_position, p.watched_intervals
        FROM videos v
-       JOIN modules mm ON mm.id = v.module_id AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $2))
+       JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $2))
        LEFT JOIN video_progress p ON p.video_id = v.id AND p.student_id = $3
       WHERE v.id = $1 AND v.is_published = true AND v.archived_at IS NULL
       LIMIT 1`,
@@ -161,7 +161,7 @@ export async function getVideoAccessMeta(videoId: string, courseId: string | nul
   if (!isUuid(videoId) || !courseId) return null;
   const r = await pool().query(
     `SELECT v.id, v.duration_seconds, v.required_watch_percent
-       FROM videos v JOIN modules mm ON mm.id = v.module_id AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $2))
+       FROM videos v JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $2))
       WHERE v.id = $1 AND v.is_published = true AND v.archived_at IS NULL LIMIT 1`,
     [videoId, courseId]
   );
@@ -396,16 +396,26 @@ export async function adminCreateModule(d: { title: string; description?: string
   return r.rows[0];
 }
 
-export async function adminUpdateModule(id: string, d: Partial<{ title: string; description: string; thumbnail_url: string | null; is_mandatory: boolean }>) {
+export async function adminUpdateModule(id: string, d: Partial<{ title: string; description: string; thumbnail_url: string | null; is_mandatory: boolean; is_published: boolean }>) {
   const fields: string[] = [];
   const vals: unknown[] = [];
-  for (const k of ['title', 'description', 'thumbnail_url', 'is_mandatory'] as const) {
+  for (const k of ['title', 'description', 'thumbnail_url', 'is_mandatory', 'is_published'] as const) {
     if (d[k] !== undefined) { vals.push(d[k]); fields.push(`${k} = $${vals.length}`); }
   }
   if (!fields.length) return null;
   vals.push(id);
   const r = await pool().query(`UPDATE modules SET ${fields.join(', ')} WHERE id = $${vals.length} RETURNING *`, vals);
   return r.rows[0] || null;
+}
+
+/** Set the order students see videos in: ids in the given order become 1..n. Ids outside this module are ignored. */
+export async function adminReorderVideos(moduleId: string, videoIds: string[]) {
+  await pool().query(
+    `UPDATE videos v SET order_index = t.n
+       FROM unnest($2::uuid[]) WITH ORDINALITY AS t(id, n)
+      WHERE v.id = t.id AND v.module_id = $1`,
+    [moduleId, videoIds]
+  );
 }
 
 export async function adminDeleteModule(id: string) {
@@ -489,7 +499,7 @@ export async function adminListStudents() {
        LEFT JOIN courses c ON c.id = p.course_id
        LEFT JOIN LATERAL (
          SELECT COUNT(*) AS total_videos
-           FROM videos v JOIN modules mm ON mm.id = v.module_id AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = p.course_id))
+           FROM videos v JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = p.course_id))
           WHERE v.is_published AND v.archived_at IS NULL
        ) t ON true
        LEFT JOIN LATERAL (
@@ -497,7 +507,7 @@ export async function adminListStudents() {
                 SUM(vp.total_seconds_watched) AS watch_seconds, MAX(vp.updated_at) AS last_activity
            FROM video_progress vp
            JOIN videos v ON v.id = vp.video_id AND v.archived_at IS NULL
-           JOIN modules mm ON mm.id = v.module_id AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = p.course_id))
+           JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = p.course_id))
           WHERE vp.student_id = p.id
        ) pr ON true
       WHERE p.role = 'student'
@@ -603,11 +613,11 @@ export async function adminOverview() {
     pool().query(
       `SELECT c.id, c.title, c.is_published,
               (SELECT COUNT(*) FROM profiles p WHERE p.course_id = c.id AND p.role = 'student')::int AS students,
-              (SELECT COUNT(*) FROM videos v JOIN modules mm ON mm.id = v.module_id AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = c.id))
+              (SELECT COUNT(*) FROM videos v JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = c.id))
                  WHERE v.is_published AND v.archived_at IS NULL)::int AS videos,
               COALESCE((SELECT COUNT(*) FROM video_progress vp JOIN profiles p ON p.id = vp.student_id
                  JOIN videos v ON v.id = vp.video_id AND v.archived_at IS NULL AND v.is_published
-                 JOIN modules mm ON mm.id = v.module_id AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = c.id))
+                 JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = c.id))
                  WHERE p.course_id = c.id AND vp.is_completed), 0)::int AS completions,
               (SELECT COUNT(DISTINCT vp.student_id) FROM video_progress vp JOIN profiles p ON p.id = vp.student_id
                  WHERE p.course_id = c.id AND vp.updated_at > NOW() - INTERVAL '7 days')::int AS active_7d
@@ -652,7 +662,7 @@ export async function adminCourseVideoStats(courseId: string) {
        JOIN videos v ON v.module_id = m.id AND v.is_published AND v.archived_at IS NULL
        LEFT JOIN video_progress vp ON vp.video_id = v.id
             AND vp.student_id IN (SELECT id FROM profiles WHERE course_id = $1 AND role = 'student')
-      WHERE m.is_mandatory OR cm.course_id IS NOT NULL
+      WHERE m.is_published AND (m.is_mandatory OR cm.course_id IS NOT NULL)
       GROUP BY v.id, m.title, m.is_mandatory, cm.order_index, v.order_index, v.duration_seconds, v.title
       ORDER BY m.is_mandatory DESC, cm.order_index NULLS LAST, v.order_index`,
     [courseId]
