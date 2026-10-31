@@ -194,6 +194,7 @@ export interface Profile {
 }
 
 export interface Course {
+  completion?: ReturnType<typeof import('./completion').summarizeCompletion>;
   id: string;
   title: string;
   slug: string;
