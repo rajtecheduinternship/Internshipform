@@ -107,7 +107,7 @@ export default function NoticeBoard() {
       {!loading && notices.length > 0 && <button type="button" className="notice-mobile-toggle" aria-expanded={mobileOpen} aria-controls="notice-content" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? t('Show less', 'कम दिखाएँ') : t(`Read notices (${notices.length})`, `सूचनाएँ पढ़ें (${notices.length})`)}<Icon name="chevron" size={16} /></button>}
       {overflow && (!mobile || mobileOpen) && <div className="notice-scroll-hint"><Icon name="chevron" size={13} />{t('Scroll to read all notices', 'सभी सूचनाएँ पढ़ने के लिए स्क्रॉल करें')}</div>}
       {error && notices.length > 0 && <p role="status" className="notice-refresh-error">{t('Showing the last received updates. We’ll try refreshing again.', 'पहले मिली सूचनाएँ दिख रही हैं। हम फिर से लाने की कोशिश करेंगे।')}</p>}
-      <div className="notice-board-footer"><Link href="/apply" className="ui-btn ui-btn-primary w-full">{t('Start your registration', 'अपना फॉर्म भरें')}<Icon name="arrow" size={17} /></Link><span lang="hi">यहाँ से शुरू करें</span><p>{t('Already registered?', 'फॉर्म भर चुके हैं?')} <Link href="/portal/login">{t('Student sign in', 'छात्र लॉगिन')} →</Link></p></div>
+      <div className="notice-board-footer"><Link href="/portal/login" className="ui-btn ui-btn-primary w-full">{t('Student sign in · Start your course', 'छात्र लॉगिन · अपना कोर्स शुरू करें')}<Icon name="arrow" size={17} /></Link><span lang="hi">यहाँ से शुरू करें</span><p>{t('Not registered yet?', 'अभी फॉर्म नहीं भरा?')} <Link href="/apply">{t('Register for the internship', 'इंटर्नशिप के लिए फॉर्म भरें')} →</Link></p></div>
     </section>
   );
 }
