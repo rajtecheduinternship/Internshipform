@@ -241,6 +241,23 @@ export const db = {
     }
   },
 
+  /** Pending applications only, without photo/signature, for bulk approval. */
+  async listPendingApplications(limit: number, excludeIds: string[] = []): Promise<{ rows: { id: string; student_name: string; university_roll_number: string }[]; total: number }> {
+    const where = `approval_status = 'pending' AND NOT (id = ANY($1::uuid[]))`;
+    if (USE_LOCAL_DB) {
+      const pool = getPgPool();
+      const rows = (await pool.query(`SELECT id, student_name, university_roll_number FROM internship_applications WHERE ${where} ORDER BY created_at LIMIT $2`, [excludeIds, limit])).rows;
+      const total = Number((await pool.query(`SELECT count(*) FROM internship_applications WHERE ${where}`, [excludeIds])).rows[0].count);
+      return { rows, total };
+    }
+    let q = getSupabaseClient().from('internship_applications').select('id, student_name, university_roll_number', { count: 'exact' })
+      .eq('approval_status', 'pending').order('created_at').limit(limit);
+    if (excludeIds.length) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
+    const { data, count, error } = await q;
+    if (error) throw new Error(error.message);
+    return { rows: data || [], total: count ?? 0 };
+  },
+
   /** Always read the current DB value: approval/revocation must not use the profile cache. */
   async getApplicationApproval(id: string): Promise<ApprovalStatus | null> {
     if (USE_LOCAL_DB) {
