@@ -5,7 +5,7 @@
 See `learning-phases.md` for PR order and completion semantics. Apply the new SQL
 migrations manually on a backup-verified database using the trusted server role:
 `011_progress_identity.sql`, then `012_live_classes.sql`, then
-`013_examinations.sql`.
+`013_examinations.sql`, then `014_exam_result_publication.sql`.
 The new tables have RLS enabled and no anonymous/authenticated client grants.
 Use a brief maintenance window for phase 1: the old app targets the email-based
 unique constraint, which migration 011 replaces. Deploy the new phase-1 code
@@ -94,8 +94,44 @@ At expiry, late answers are ignored; previously saved answers are graded. The UI
 requests finalization automatically. If the browser is closed/offline, the next
 attempt access or admin result report finalizes from the original deadline (no
 background scheduler is required). Submission/finalization is locked, atomic and
-idempotent. Answer keys are never returned by student endpoints, even after the
-result. Results and tab-visibility counts are in Admin → exam → View results.
+idempotent. Answer keys are never returned by student endpoints, even after release.
+
+## Admin answer review and optional result publication
+
+Scores are now **private by default**, including pre-existing attempts when
+migration 014 is applied. Submission/expiry still calculates and retains the
+score, but the student only sees “Appeared / Submitted / Result awaiting
+publication.” No correct count, percentage or pass/fail is returned to students
+until the admin explicitly releases that specific result.
+
+Admin → Examinations → View results → Review answers & calculation displays:
+
+- Each saved question and its shuffled options from that student's attempt.
+- The selected answer (or Unanswered), the correct answer and awarded marks.
+- Correct / incorrect / unanswered totals and the percentage calculation.
+- The frozen exam pass threshold; passing uses the unrounded correct-answer ratio.
+
+Each question is worth 1 mark; incorrect and blank answers receive 0, with no
+negative marks. Reviewing/publishing does not edit answers, keys or calculated
+scores. Bank changes after an attempt cannot change this saved answer sheet.
+Review/publication of an unfinished attempt is refused. Expired attempts are
+finalized from saved answers before review.
+
+Use **Publish result** for one student, or **Publish all submitted results** for
+all current submissions. Bulk publication is a one-time action, not an automatic
+release setting: later submissions remain private. **Make result private** hides
+it again without erasing internal marks/answers. Previously disclosed marks
+cannot be recalled from screenshots or a student's memory.
+
+Students can see appearance/submission and released marks in the module exam list,
+Examinations and My progress; the submitted-exam screen refreshes result status
+on focus, every 30 seconds, or using Refresh result. Admins can also review and
+publish from Students → student record → Exam participation & results. Private
+scores remain visible to admins. A published historical result can still be read
+if the exam/module is hidden, provided the student remains assigned to the same
+published course; this does not permit starting/resuming a hidden examination.
+
+Tab-visibility counts remain advisory and are shown only to admins.
 
 Copy/context-menu blocking is **only a deterrent**, not a security boundary. This
 cannot prevent screenshots, browser tools, photographs, another device, or all
@@ -112,3 +148,34 @@ records are edited. `npx tsc --noEmit` and targeted ESLint cover the application
 `npm run test:learning-ui` uses Playwright, an existing local server, and synthetic
 API fixtures only; set PLAYWRIGHT_MODULE, BROWSER_EXECUTABLE, BASE_URL and optionally
 SCREENSHOT_DIR for environments without a project-local browser installation.
+
+
+Real full-stack acceptance: `npm run test:learning-e2e` requires a fresh isolated
+production BUILD_DIR plus Playwright/Chrome paths. It starts/stops its own local
+server, signs in through real password endpoints, uses real HTTP APIs and browser
+forms (no API interception), and creates/drops a random PostgreSQL schema. It
+covers completion/publication, course-scoped Meet notices, timed exam attempts,
+admin answer review, private/released/withdrawn student scores, expiry and key
+negative/security cases. `npm run test:exam-results` covers result visibility,
+immutable grading, snapshot preservation, wrong-student/wrong-exam access,
+unfinished-attempt refusal, bulk/future submissions, payload tampering and CSRF.
+
+
+### Network / console confidentiality
+
+Student exam endpoints explicitly serialize only their question text/options,
+selected answers and safe attempt metadata. Correct-option indices, answer keys,
+per-question marks and admin review data are never sent to student endpoints,
+including after result publication. Until release, percentage/correct-count and
+pass/fail are null in both the attempt and dashboard responses. Admin review
+endpoints require the signed admin session and same-origin protection for writes.
+All result responses use no-store caching headers. Browser exam code cannot
+runtime-import the server DB/grading modules under the ESLint boundary rules,
+and exam UI console calls are prohibited. Learning API failures do not log raw
+exceptions/messages that could contain question/answer payloads.
+
+The real E2E suite inspects student browser API response bodies and console output
+for answer-key/private-grade leakage. This is not DRM: visible questions and
+intentionally published scores must reach the student's browser and can be read
+in DevTools, photographed or copied. No claim is made to prevent that, or to
+recall a result the student already saw before it was made private again.

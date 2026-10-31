@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { SubmittedResult } from '@/components/exams/ExamStatus';
 import Link from 'next/link';
 import StudentNavbar from '@/components/layout/StudentNavbar';
 import PortalFooter from '@/components/layout/PortalFooter';
@@ -63,6 +64,13 @@ function ExamAttempt({ id }: { id: string }) {
     window.addEventListener('beforeunload', warn); document.addEventListener('visibilitychange', visibility);
     return () => { window.removeEventListener('beforeunload', warn); document.removeEventListener('visibilitychange', visibility); };
   }, [attempt, enqueue, send]);
+  useEffect(() => {
+    if (!attempt?.submitted_at) return;
+    const refreshResult = () => { void send('GET').catch((e) => setError(e.message)); };
+    const timer = setInterval(refreshResult, 30000);
+    window.addEventListener('focus', refreshResult);
+    return () => { clearInterval(timer); window.removeEventListener('focus', refreshResult); };
+  }, [attempt?.submitted_at, send]);
   function choose(questionId: string, answer: number) {
     const snapshot = { ...answerRef.current, [questionId]: answer };
     answerRef.current = snapshot; setAnswers(snapshot); const rev = ++revision.current;
@@ -86,7 +94,7 @@ function ExamAttempt({ id }: { id: string }) {
       <p>{t('Work independently. Copying and context menus are discouraged; tab visibility changes are recorded. This is not full proctoring and does not prevent screenshots or use of other devices.', 'स्वयं उत्तर दें। कॉपी और संदर्भ मेन्यू पर रोक लगाने का प्रयास है; टैब की दृश्यता के बदलाव दर्ज होते हैं। यह पूर्ण निगरानी नहीं है और स्क्रीनशॉट या दूसरे उपकरण नहीं रोक सकता।')}</p>
       {!exam.eligible && <p>{t('Complete this module’s published lessons first.', 'पहले इस मॉड्यूल के प्रकाशित पाठ पूरे करें।')}</p>}
       <button className="ui-btn ui-btn-primary" disabled={pending > 0 || !exam.eligible || !!error} onClick={() => { if (window.confirm(t('Start now? Your timer cannot be paused.', 'अभी शुरू करें? समय रोका नहीं जा सकता।'))) enqueue(async () => { const a = await send('POST'); answerRef.current = a?.answers || {}; setAnswers(answerRef.current); setError(''); }); }}>{t('Start examination', 'परीक्षा शुरू करें')}</button>
-    </section> : attempt.submitted_at ? <section className="ui-card ui-card-pad space-y-3" role="status"><h2 className="ui-h2">{t('Examination submitted', 'परीक्षा जमा हो गई')}</h2><p>{attempt.correct_count}/{attempt.questions.length} · {attempt.score_percent}% · {attempt.passed ? t('Passed', 'उत्तीर्ण') : t('Not passed', 'अनुत्तीर्ण')}</p><p>{t('Your result is saved. Your teacher can view it. A new exam is needed for another attempt.', 'परिणाम सेव हो गया है। शिक्षक इसे देख सकते हैं। दोबारा प्रयास के लिए नई परीक्षा चाहिए।')}</p></section> : <>
+    </section> : attempt.submitted_at ? <section className="ui-card ui-card-pad space-y-3" role="status"><h2 className="ui-h2">{t('Examination submitted', 'परीक्षा जमा हो गई')}</h2><SubmittedResult attempt={attempt} /><button className="ui-btn" onClick={() => enqueue(async () => { await reloadExams(); await send('GET'); setError(''); })}>{t('Refresh result', 'परिणाम फिर लोड करें')}</button></section> : <>
       <div className="ui-card ui-card-pad sticky top-0 z-10 bg-white flex flex-wrap justify-between gap-3"><strong role="timer" aria-label={t('Time remaining', 'बाकी समय')}>{t('Time remaining', 'बाकी समय')}: {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</strong><span role="status">{pending ? t('Saving…', 'सेव हो रहा है…') : savedRevision < revision.current ? t('Answers not saved — retry', 'उत्तर सेव नहीं हुए — फिर कोशिश करें') : t('All changes saved', 'सभी बदलाव सेव हैं')}</span></div>
       <form className="space-y-4 select-none" style={{ userSelect: 'none' }} onCopy={(e) => e.preventDefault()} onCut={(e) => e.preventDefault()} onContextMenu={(e) => e.preventDefault()} onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {attempt.questions.map((q, i) => <fieldset key={q.id} className="ui-card ui-card-pad space-y-3" disabled={remaining <= 0 || submitting}><legend className="font-semibold">{i + 1}. {q.prompt}</legend>{q.options.map((option, n) => <label key={n} className="flex gap-3 items-start border rounded p-3 cursor-pointer"><input type="radio" name={q.id} value={n} checked={answers[q.id] === n} onChange={() => choose(q.id, n)} /><span>{String.fromCharCode(65 + n)}) {option}</span></label>)}</fieldset>)}

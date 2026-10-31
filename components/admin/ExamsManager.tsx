@@ -2,12 +2,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
 import { useCopy } from '@/components/help/i18n';
-import { classInput, classInstant, classTime } from '@/lib/class-calendar';
+import ExamResults from './ExamResults';
+import { classInput, classInstant } from '@/lib/class-calendar';
 import type { BankQuestion, QuestionInput } from '@/lib/exam-validation';
 import type { ExamSummary } from '@/lib/exams';
 type Course = { id: string; title: string };
 type Module = Course & { courses: Course[]; is_mandatory: boolean };
-type Result = { id: string; full_name: string; phone: string; submitted_at: string | null; deadline_at: string; correct_count: number; total_questions: number; score_percent: number; passed: boolean; focus_events: number };
 const emptyQuestion = { prompt: '', options: '', answer_index: 0 };
 const emptyExam = { title: '', duration_minutes: 30, pass_percent: 50, requires_module_completion: true, opens_at: '', closes_at: '', question_ids: [] as string[] };
 export default function ExamsManager() {
@@ -19,7 +19,7 @@ export default function ExamsManager() {
   const [draft, setDraft] = useState(emptyExam); const [editId, setEditId] = useState<string | null>(null);
   const [preview, setPreview] = useState<QuestionInput[]>([]); const [previewScope, setPreviewScope] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
-  const [results, setResults] = useState<Result[] | null>(null); const [resultTitle, setResultTitle] = useState('');
+  const [resultExam, setResultExam] = useState<ExamSummary | null>(null);
   const load = useCallback(async () => {
     const [a, b, c] = await Promise.all([api<{ courses: Course[] }>('/api/admin/courses'), api<{ modules: Module[] }>('/api/admin/modules'), api<{ exams: ExamSummary[] }>('/api/admin/exams')]);
     setCourses(a.courses); setModules(b.modules); setExams(c.exams);
@@ -41,7 +41,7 @@ export default function ExamsManager() {
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   function changeCourse(id: string) {
-    setCourse(id); setModule(''); setDraft(emptyExam); setEditId(null); setQuestion(emptyQuestion); setQuestionId(null); setPreview([]); setResults(null);
+    setCourse(id); setModule(''); setDraft(emptyExam); setEditId(null); setQuestion(emptyQuestion); setQuestionId(null); setPreview([]); setResultExam(null);
   }
   async function importFile(file?: File) {
     if (!file) return;
@@ -99,8 +99,8 @@ export default function ExamsManager() {
     {exams.filter((e) => !courseId || e.course_id === courseId).map((exam) => <article key={exam.id} className="ui-card ui-card-pad space-y-3"><h3 className="ui-h2">{exam.title}</h3><p>{exam.module_title} · {exam.duration_minutes} {t('minutes', 'मिनट')} · {exam.is_published ? t('Published', 'प्रकाशित') : t('Hidden / draft', 'छिपी / ड्राफ्ट')}</p><div className="flex flex-wrap gap-2">
       {!exam.published_at && <button className="ui-btn" disabled={busy} onClick={() => { setCourse(exam.course_id); setModule(exam.module_id); setEditId(exam.id); setDraft({ title: exam.title, duration_minutes: exam.duration_minutes, pass_percent: exam.pass_percent, requires_module_completion: exam.requires_module_completion, opens_at: exam.opens_at ? classInput(exam.opens_at) : '', closes_at: exam.closes_at ? classInput(exam.closes_at) : '', question_ids: exam.question_ids }); }}>{t('Edit draft', 'ड्राफ्ट बदलें')}</button>}
       <button className="ui-btn ui-btn-primary" disabled={busy} onClick={() => { if (window.confirm(exam.is_published ? t('Hide this exam? Students cannot access it until republished; timers continue.', 'परीक्षा छिपाएँ? दोबारा प्रकाशित होने तक छात्र नहीं खोल पाएँगे; समय-सीमा चलती रहेगी।') : t('Publish this exam? Questions and rules cannot be changed after publishing.', 'परीक्षा प्रकाशित करें? इसके बाद प्रश्न और नियम नहीं बदल सकेंगे।'))) void run(async () => { await api(`/api/admin/exams/${exam.id}`, 'PATCH', { is_published: !exam.is_published }); await load(); }); }}>{exam.is_published ? t('Unpublish', 'प्रकाशन हटाएँ') : t('Publish exam', 'परीक्षा प्रकाशित करें')}</button>
-      <button className="ui-btn" disabled={busy} onClick={() => run(async () => { setResults((await api<{ results: Result[] }>(`/api/admin/exams/${exam.id}/results`)).results); setResultTitle(exam.title); })}>{t('View results', 'परिणाम देखें')}</button>
+      <button className="ui-btn" disabled={busy} onClick={() => setResultExam(exam)}>{t('View results', 'परिणाम देखें')}</button>
     </div></article>)}
-    {results && <section className="ui-card ui-card-pad space-y-3"><h2 className="ui-h2">{resultTitle} · {t('Results', 'परिणाम')}</h2><p>{t('Tab switches are advisory signals, not evidence of cheating.', 'टैब बदलने की जानकारी केवल संकेत है, नकल का प्रमाण नहीं।')}</p>{!results.length && <p>{t('No attempts yet.', 'अभी कोई प्रयास नहीं।')}</p>}{results.map((r) => <article key={r.id} className="border-t pt-3"><strong>{r.full_name} · {r.phone}</strong><p>{r.submitted_at ? `${r.correct_count}/${r.total_questions} · ${r.score_percent}% · ${r.passed ? t('Passed', 'उत्तीर्ण') : t('Not passed', 'अनुत्तीर्ण')}` : `${t('In progress until', 'इस समय तक जारी')} ${classTime(r.deadline_at)} IST`}</p><small>{t('Visibility changes', 'दृश्यता बदलाव')}: {r.focus_events}</small></article>)}</section>}
+    {resultExam && <div className="space-y-3"><h2 className="ui-h2">{resultExam.title}</h2><ExamResults key={resultExam.id} examId={resultExam.id} /></div>}
   </div>;
 }

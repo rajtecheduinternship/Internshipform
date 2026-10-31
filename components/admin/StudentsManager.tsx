@@ -1,5 +1,6 @@
 'use client';
 
+import ExamResults from './ExamResults';
 import LoadingState from '@/components/LoadingState';
 
 import { useCopy, useLang } from '@/components/help/i18n';
@@ -277,6 +278,7 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
               <Field label={t("Last sign-in")} value={timeAgo(d.profile.last_login_at, lang)} />
             </dl>
 
+            <ExamResults key={`exams-${id}`} studentId={id} />
             <EditStudent key={id} id={id} profile={d.profile} onSaved={() => { void reload(); onChanged(); }} />
 
             <div>

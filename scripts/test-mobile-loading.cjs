@@ -24,7 +24,7 @@ const fixtures = {
   '/api/admin/overview': { totals: { students: 1, unassigned: 0, active7d: 0, watchSeconds: 0, enquiries: 1 }, courses: [], daily: [] },
   '/api/admin/courses': { courses: [course] }, '/api/admin/courses/course-1': { course },
   '/api/admin/modules': { modules: [moduleFixture] }, '/api/admin/modules/module-1': { module: moduleFixture },
-  '/api/admin/students': { students: [student] }, '/api/admin/students/student-1': { profile, course },
+  '/api/admin/students': { students: [student] }, '/api/admin/students/student-1': { profile, course }, '/api/admin/students/student-1/exams': { results: [] },
   '/api/admin/news': notices, '/api/enquiries': { enquiries: [{ id: 'enquiry-1', full_name: 'Interested Student', phone: profile.phone, email: profile.email, course_interest: course.title, college: profile.college, message: 'How can I start learning?', created_at: '2026-10-30T10:00:00Z' }] },
   '/api/form-token': { token: 'test-only' }, '/api/tracking/session': { session_id: 'test-session' },
 };

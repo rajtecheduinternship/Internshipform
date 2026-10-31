@@ -5,17 +5,20 @@ import { isUuid } from '@/lib/lms';
 import { LearningError } from '@/lib/learning-errors';
 import { BankQuestion, validateExam, validateQuestion } from '@/lib/exam-validation';
 
-type Questions = Pick<BankQuestion, 'id' | 'prompt' | 'options' | 'answer_index'>[];
+export type Questions = Pick<BankQuestion, 'id' | 'prompt' | 'options' | 'answer_index'>[];
 export interface ExamSummary {
   id: string; title: string; course_id: string; module_id: string; module_title: string;
   duration_minutes: number; pass_percent: number; requires_module_completion: boolean;
   opens_at: string | null; closes_at: string | null; is_published: boolean; published_at: string | null;
   question_ids: string[]; eligible?: boolean;
+  attempt_status?: 'not_started' | 'in_progress' | 'submitted';
+  result_published_at?: string | null; score_percent?: number | null; passed?: boolean | null;
 }
 export interface PublicAttempt {
   id: string; deadline_at: string; server_now: string; submitted_at: string | null;
   questions: { id: string; prompt: string; options: string[] }[]; answers: Record<string, number>;
   correct_count: number | null; score_percent: number | null; passed: boolean | null;
+  result_published_at: string | null;
 }
 async function inTransaction<T>(fn: (db: PoolClient) => Promise<T>) {
   const db = await getPgPool().connect();
@@ -91,9 +94,18 @@ const moduleDone = `EXISTS (SELECT 1 FROM videos v WHERE v.module_id=e.module_id
   WHERE v.module_id=e.module_id AND v.is_published AND v.archived_at IS NULL AND NOT COALESCE(p.is_completed,false))`;
 export async function studentExams(courseId: string | null | undefined, studentId: string) {
   if (!isUuid(courseId)) return [];
-  return (await getPgPool().query(`SELECT e.id,e.title,e.course_id,e.module_id,m.title AS module_title,e.duration_minutes,e.pass_percent,
-    e.requires_module_completion,e.opens_at,e.closes_at, (NOT e.requires_module_completion OR (${moduleDone})) AS eligible
-    FROM exams e JOIN courses c ON c.id=e.course_id JOIN modules m ON m.id=e.module_id WHERE ${visible} ORDER BY e.created_at DESC`, [courseId, studentId])).rows as ExamSummary[];
+  return inTransaction(async (db) => {
+    await finalizeExpired(db, undefined, studentId);
+    return (await db.query(`SELECT e.id,e.title,e.course_id,e.module_id,m.title AS module_title,e.duration_minutes,e.pass_percent,
+      e.requires_module_completion,e.opens_at,e.closes_at,e.is_published, (NOT e.requires_module_completion OR (${moduleDone})) AS eligible,
+      CASE WHEN a.id IS NULL THEN 'not_started' WHEN a.submitted_at IS NULL THEN 'in_progress' ELSE 'submitted' END AS attempt_status,
+      a.result_published_at,
+      CASE WHEN a.result_published_at IS NOT NULL THEN a.score_percent::float END AS score_percent,
+      CASE WHEN a.result_published_at IS NOT NULL THEN a.passed END AS passed
+      FROM exams e JOIN courses c ON c.id=e.course_id JOIN modules m ON m.id=e.module_id
+      LEFT JOIN exam_attempts a ON a.exam_id=e.id AND a.student_id=$2
+      WHERE (${visible}) OR (e.course_id=$1 AND c.is_published AND a.result_published_at IS NOT NULL) ORDER BY e.created_at DESC`, [courseId, studentId])).rows as ExamSummary[];
+  });
 }
 export async function adminExams() {
   return (await getPgPool().query(`SELECT e.id,e.title,e.course_id,e.module_id,m.title AS module_title,e.duration_minutes,e.pass_percent,
@@ -124,7 +136,7 @@ export async function attemptExam(args: { examId: string; courseId: string | nul
   return inTransaction(async (db) => {
     const exam = (await db.query(`SELECT e.*, (NOT e.requires_module_completion OR (${moduleDone})) AS eligible
       FROM exams e JOIN courses c ON c.id=e.course_id JOIN modules m ON m.id=e.module_id
-      WHERE ${visible} AND e.id=$3 FOR SHARE OF e`, [args.courseId, args.studentId, args.examId])).rows[0];
+      WHERE ((${visible}) ${args.action === 'read' ? `OR (e.course_id=$1 AND c.is_published AND EXISTS (SELECT 1 FROM exam_attempts a WHERE a.exam_id=e.id AND a.student_id=$2 AND a.result_published_at IS NOT NULL))` : ''}) AND e.id=$3 FOR SHARE OF e`, [args.courseId, args.studentId, args.examId])).rows[0];
     if (!exam) throw new LearningError('Exam not available.', 404);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`exam:${args.examId}:${args.studentId}`]);
     let attempt = (await db.query('SELECT * FROM exam_attempts WHERE exam_id=$1 AND student_id=$2 FOR UPDATE', [args.examId, args.studentId])).rows[0];
@@ -150,29 +162,105 @@ export async function attemptExam(args: { examId: string; courseId: string | nul
     }
     if (!attempt.submitted_at && (expired || args.action === 'submit')) {
       const questions: Questions = attempt.questions;
-      const correct = questions.filter((q) => attempt.answers[q.id] === q.answer_index).length;
-      const percent = Math.round(correct / questions.length * 10000) / 100;
-      attempt = (await db.query('UPDATE exam_attempts SET submitted_at=$2,correct_count=$3,score_percent=$4,passed=$5 WHERE id=$1 RETURNING *', [attempt.id, expired ? attempt.deadline_at : now, correct, percent, correct * 100 >= exam.pass_percent * questions.length])).rows[0];
+      const grade = gradeAttempt(questions, attempt.answers, exam.pass_percent);
+      attempt = (await db.query('UPDATE exam_attempts SET submitted_at=$2,correct_count=$3,score_percent=$4,passed=$5 WHERE id=$1 RETURNING *', [attempt.id, expired ? attempt.deadline_at : now, grade.correct_count, grade.score_percent, grade.passed])).rows[0];
     }
     return {
       id: attempt.id, deadline_at: attempt.deadline_at, server_now: now.toISOString(), submitted_at: attempt.submitted_at,
       questions: (attempt.questions as Questions).map(({ id, prompt, options }) => ({ id, prompt, options })),
-      answers: attempt.answers, correct_count: attempt.correct_count, score_percent: attempt.score_percent === null ? null : Number(attempt.score_percent), passed: attempt.passed,
+      answers: attempt.answers, result_published_at: attempt.result_published_at,
+      correct_count: attempt.result_published_at ? attempt.correct_count : null,
+      score_percent: attempt.result_published_at ? Number(attempt.score_percent) : null,
+      passed: attempt.result_published_at ? attempt.passed : null,
     } as PublicAttempt;
   });
 }
+/** Single grading rule used by submission, expiry and the admin answer review. */
+export function gradeAttempt(questions: Questions, answers: Record<string, number>, passPercent: number) {
+  const items = questions.map((q) => {
+    const selected = Number.isInteger(answers[q.id]) ? answers[q.id] : null;
+    const correct = selected === q.answer_index;
+    return { id: q.id, prompt: q.prompt, options: q.options, selected_index: selected,
+      selected_answer: selected === null ? null : q.options[selected], correct_index: q.answer_index,
+      correct_answer: q.options[q.answer_index], is_correct: correct, marks_awarded: correct ? 1 : 0, maximum_marks: 1 };
+  });
+  const correct = items.filter((q) => q.is_correct).length;
+  return { questions: items, correct_count: correct, total_questions: questions.length,
+    unanswered_count: items.filter((q) => q.selected_index === null).length,
+    incorrect_count: items.filter((q) => q.selected_index !== null && !q.is_correct).length,
+    score_percent: Math.round(correct / questions.length * 10000) / 100,
+    pass_percent: passPercent, passed: correct * 100 >= passPercent * questions.length };
+}
+async function finalizeExpired(db: PoolClient, examId?: string, studentId?: string) {
+  const rows = (await db.query(`SELECT a.*, e.pass_percent FROM exam_attempts a JOIN exams e ON e.id=a.exam_id
+    WHERE ($1::uuid IS NULL OR a.exam_id=$1) AND ($2::uuid IS NULL OR a.student_id=$2)
+    AND a.submitted_at IS NULL AND a.deadline_at<=clock_timestamp() ORDER BY a.id FOR UPDATE OF a`, [examId || null, studentId || null])).rows;
+  for (const a of rows) {
+    const g = gradeAttempt(a.questions, a.answers, a.pass_percent);
+    await db.query('UPDATE exam_attempts SET submitted_at=deadline_at,correct_count=$2,score_percent=$3,passed=$4 WHERE id=$1', [a.id, g.correct_count, g.score_percent, g.passed]);
+  }
+}
+export interface AdminExamResult {
+  id: string; exam_id: string; student_id: string; full_name: string; phone: string;
+  exam_title: string; module_title: string; started_at: string; deadline_at: string;
+  submitted_at: string | null; result_published_at: string | null;
+  correct_count: number | null; score_percent: number | null; passed: boolean | null;
+  focus_events: number; total_questions: number;
+}
+export interface AdminAnswerReview {
+  id: string; exam_id: string; student_id: string; full_name: string; exam_title: string;
+  submitted_at: string; result_published_at: string | null;
+  grade: ReturnType<typeof gradeAttempt>;
+}
 export async function adminExamResults(examId: string) {
   if (!isUuid(examId)) throw new LearningError('Invalid exam.');
-  // Reading the report also finalizes expired attempts, even if students never return.
   return inTransaction(async (db) => {
-    const rows = (await db.query(`SELECT a.*, e.pass_percent FROM exam_attempts a JOIN exams e ON e.id=a.exam_id
-      WHERE a.exam_id=$1 AND a.submitted_at IS NULL AND a.deadline_at<=clock_timestamp() FOR UPDATE OF a`, [examId])).rows;
-    for (const a of rows) {
-      const correct = (a.questions as Questions).filter((q) => a.answers[q.id] === q.answer_index).length;
-      await db.query('UPDATE exam_attempts SET submitted_at=deadline_at,correct_count=$2,score_percent=$3,passed=$4 WHERE id=$1', [a.id, correct, Math.round(correct / a.questions.length * 10000) / 100, correct * 100 >= a.pass_percent * a.questions.length]);
+    await finalizeExpired(db, examId);
+    return (await db.query(`SELECT a.id,a.exam_id,a.student_id,p.full_name,p.phone,e.title AS exam_title,m.title AS module_title,
+      a.started_at,a.deadline_at,a.submitted_at,a.result_published_at,a.correct_count,a.score_percent::float,a.passed,
+      a.focus_events,jsonb_array_length(a.questions) AS total_questions
+      FROM exam_attempts a JOIN profiles p ON p.id=a.student_id JOIN exams e ON e.id=a.exam_id
+      JOIN modules m ON m.id=e.module_id WHERE a.exam_id=$1 ORDER BY a.started_at DESC`, [examId])).rows as AdminExamResult[];
+  });
+}
+export async function adminAnswerReview(examId: string, attemptId: string): Promise<AdminAnswerReview> {
+  if (!isUuid(examId) || !isUuid(attemptId)) throw new LearningError('Result not found.', 404);
+  return inTransaction(async (db) => {
+    await finalizeExpired(db, examId);
+    const a = (await db.query(`SELECT a.*,p.full_name,e.title AS exam_title,e.pass_percent FROM exam_attempts a
+      JOIN profiles p ON p.id=a.student_id JOIN exams e ON e.id=a.exam_id
+      WHERE a.exam_id=$1 AND a.id=$2 FOR SHARE OF a`, [examId, attemptId])).rows[0];
+    if (!a) throw new LearningError('Result not found.', 404);
+    if (!a.submitted_at) throw new LearningError('Answer review is available after submission.', 409);
+    return { id: a.id, exam_id: a.exam_id, student_id: a.student_id, full_name: a.full_name,
+      exam_title: a.exam_title, submitted_at: a.submitted_at, result_published_at: a.result_published_at,
+      grade: gradeAttempt(a.questions, a.answers, a.pass_percent) };
+  });
+}
+/** A one-time release of existing submissions, not an auto-release setting for future attempts. */
+export async function publishExamResults(examId: string, published: boolean, attemptId?: string) {
+  if (!isUuid(examId) || (attemptId !== undefined && !isUuid(attemptId)) || typeof published !== 'boolean') throw new LearningError('Invalid result publication request.');
+  return inTransaction(async (db) => {
+    if (!(await db.query('SELECT 1 FROM exams WHERE id=$1', [examId])).rowCount) throw new LearningError('Exam not found.', 404);
+    await finalizeExpired(db, examId);
+    if (attemptId) {
+      const a = (await db.query('SELECT submitted_at FROM exam_attempts WHERE exam_id=$1 AND id=$2 FOR UPDATE', [examId, attemptId])).rows[0];
+      if (!a) throw new LearningError('Result not found.', 404);
+      if (!a.submitted_at) throw new LearningError('Cannot publish an unfinished attempt.', 409);
     }
-    return (await db.query(`SELECT a.id,a.student_id,p.full_name,p.phone,a.started_at,a.deadline_at,a.submitted_at,a.correct_count,
-      a.score_percent,a.passed,a.focus_events,jsonb_array_length(a.questions) AS total_questions
-      FROM exam_attempts a JOIN profiles p ON p.id=a.student_id WHERE a.exam_id=$1 ORDER BY a.started_at DESC`, [examId])).rows;
+    const rows = await db.query(`UPDATE exam_attempts SET result_published_at=CASE WHEN $2 THEN COALESCE(result_published_at,clock_timestamp()) ELSE NULL END
+      WHERE exam_id=$1 AND ($3::uuid IS NULL OR id=$3) AND submitted_at IS NOT NULL RETURNING id`, [examId, published, attemptId || null]);
+    return { updated: rows.rowCount || 0 };
+  });
+}
+export async function adminStudentExams(studentId: string) {
+  if (!isUuid(studentId)) throw new LearningError('Student not found.', 404);
+  return inTransaction(async (db) => {
+    await finalizeExpired(db, undefined, studentId);
+    return (await db.query(`SELECT a.id,a.exam_id,a.student_id,p.full_name,p.phone,e.title AS exam_title,m.title AS module_title,
+      a.started_at,a.deadline_at,a.submitted_at,a.result_published_at,a.correct_count,a.score_percent::float,a.passed,
+      a.focus_events,jsonb_array_length(a.questions) AS total_questions
+      FROM exam_attempts a JOIN profiles p ON p.id=a.student_id JOIN exams e ON e.id=a.exam_id
+      JOIN modules m ON m.id=e.module_id WHERE a.student_id=$1 ORDER BY a.started_at DESC`, [studentId])).rows as AdminExamResult[];
   });
 }

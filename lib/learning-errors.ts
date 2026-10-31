@@ -5,7 +5,9 @@ export class LearningError extends Error {
 export function learningErrorResponse(error: unknown) {
   if (error instanceof SyntaxError) return NextResponse.json({ error: 'Invalid JSON request.' }, { status: 400 });
   if (error instanceof LearningError) return NextResponse.json({ error: error.message }, { status: error.status });
-  console.error('Learning API failed:', error);
+  // Never log the exception object/message: PostgreSQL details or request errors
+  // can contain submitted answers, question text or answer-key data.
+  console.error('Learning API request failed. Sensitive exception details suppressed.');
   return NextResponse.json({ error: 'Unable to complete request. Please try again.' }, { status: 500 });
 }
 export function text(value: unknown, max: number, name: string): string {
