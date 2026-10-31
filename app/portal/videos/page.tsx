@@ -1,5 +1,7 @@
 'use client';
 
+import LoadingState from '@/components/LoadingState';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import StudentNavbar from '@/components/layout/StudentNavbar';
@@ -48,7 +50,7 @@ export default function VideoLibraryPage() {
   const firstName = student?.full_name.split(' ')[0];
 
   return (
-    <div className="ui-page student-page flex flex-col">
+    <div className="ui-page student-page learning-page flex flex-col">
       <StudentNavbar />
       <main id="main-content" className="portal-main" tabIndex={-1}>
         <div className="page-heading">
@@ -58,7 +60,7 @@ export default function VideoLibraryPage() {
           <div className="heading-note"><span className="status-dot" />{t('Your space to grow', 'सीखने और आगे बढ़ने की जगह')}</div>
         </div>
 
-        {loading ? <div role="status" aria-label={t('Loading your course', 'आपका कोर्स लोड हो रहा है')} className="space-y-5"><div className="ui-skeleton h-64" /><div className="grid grid-cols-3 gap-4">{[0, 1, 2].map((n) => <div key={n} className="ui-skeleton h-24" />)}</div><div className="ui-skeleton h-72" /></div> : error ? (
+        {loading ? <LoadingState label={t('Loading your course', 'आपका कोर्स लोड हो रहा है')} /> : error ? (
           <div className="ui-card ui-card-pad space-y-4"><ErrorNote>{t('Your lessons could not load. Check your connection and try again.', 'पाठ नहीं खुल पाए। इंटरनेट जाँचें और फिर कोशिश करें।')}</ErrorNote><button onClick={load} className="ui-btn">{t('Try again', 'फिर कोशिश करें')}</button></div>
         ) : !course ? (
           <div className="ui-card"><Empty title={t('Your course is on its way', 'आपका कोर्स जल्द दिखेगा')}>{t('Ask your internship coordinator to assign your course. Once added, all your lessons will appear here.', 'अपने इंटर्नशिप शिक्षक से कोर्स जोड़ने के लिए कहें। उसके बाद सभी पाठ यहाँ दिखेंगे।')}<div className="mt-5"><Link href="/enquiry" className="ui-btn ui-btn-primary">{t('Contact the team', 'टीम से संपर्क करें')}<Icon name="arrow" size={16} /></Link></div></Empty></div>

@@ -1,5 +1,6 @@
 'use client';
 
+import LoadingState, { BusyText } from '@/components/LoadingState';
 import { Progress } from '@/components/ui';
 import { useCopy } from '@/components/help/i18n';
 
@@ -38,6 +39,7 @@ declare global {
           events?: {
             onReady?: (event: { target: YTPlayerInstance }) => void;
             onStateChange?: (event: { data: number; target: YTPlayerInstance }) => void;
+            onError?: () => void;
           };
         }
       ) => YTPlayerInstance;
@@ -73,15 +75,21 @@ export default function YouTubePlayer({
   onProgress,
 }: YouTubePlayerProps) {
   const t = useCopy();
-  const containerId = `yt-player-${videoId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const containerBase = `yt-player-${videoId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const playerRef = useRef<YTPlayerInstance | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
+  const [playerReady, setPlayerReady] = useState(false);
+  const [buffering, setBuffering] = useState(false);
+  const [playerError, setPlayerError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(lastPosition);
   const [duration, setDuration] = useState(0);
   const [intervals, setIntervals] = useState<Interval[]>(initialIntervals);
   const [isCompleted, setIsCompleted] = useState(false);
+
+  const containerId = `${containerBase}-${attempt}`;
 
   const segmentStartRef = useRef<number | null>(null);
   const intervalsRef = useRef<Interval[]>(initialIntervals);
@@ -188,6 +196,10 @@ export default function YouTubePlayer({
   // Initialize YouTube IFrame Player
   useEffect(() => {
     let isDestroyed = false;
+    // A blocked third-party script must not leave an endless blank player.
+    const readyTimeout = window.setTimeout(() => {
+      if (!isDestroyed) setPlayerError(true);
+    }, 20000);
 
     function createPlayer() {
       if (!window.YT || !window.YT.Player || isDestroyed) return;
@@ -205,6 +217,8 @@ export default function YouTubePlayer({
           events: {
             onReady: (event) => {
               if (isDestroyed) return;
+              window.clearTimeout(readyTimeout);
+              setPlayerReady(true); setPlayerError(false);
               const dur = event.target.getDuration();
               setDuration(dur);
               durationRef.current = dur;
@@ -212,9 +226,15 @@ export default function YouTubePlayer({
                 event.target.seekTo(lastPosition, true);
               }
             },
+            onError: () => {
+              if (isDestroyed) return;
+              window.clearTimeout(readyTimeout);
+              setPlayerError(true); setBuffering(false); setIsPlaying(false);
+            },
             onStateChange: (event) => {
               if (isDestroyed) return;
               const state = event.data;
+              setBuffering(state === window.YT.PlayerState.BUFFERING);
               const player = event.target;
               const current = player.getCurrentTime ? player.getCurrentTime() : 0;
               setCurrentTime(current);
@@ -250,10 +270,14 @@ export default function YouTubePlayer({
           },
         });
       } catch (e) {
+        window.clearTimeout(readyTimeout);
+        setPlayerError(true);
         console.error('Error mounting YT Player:', e);
       }
     }
 
+    const prevCallback = window.onYouTubeIframeAPIReady;
+    let apiReady: (() => void) | undefined;
     if (window.YT && window.YT.Player) {
       createPlayer();
     } else {
@@ -265,15 +289,17 @@ export default function YouTubePlayer({
         document.body.appendChild(tag);
       }
 
-      const prevCallback = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
+      apiReady = () => {
         if (prevCallback) prevCallback();
         createPlayer();
       };
+      window.onYouTubeIframeAPIReady = apiReady;
     }
 
     return () => {
       isDestroyed = true;
+      window.clearTimeout(readyTimeout);
+      if (apiReady && window.onYouTubeIframeAPIReady === apiReady) window.onYouTubeIframeAPIReady = prevCallback;
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
@@ -352,7 +378,11 @@ export default function YouTubePlayer({
   return (
     <div className="ui-card" style={{ overflow: 'hidden' }}>
       <div className="relative aspect-video w-full bg-black">
-        <div id={containerId} className="h-full w-full" />
+        <div key={containerId} className="h-full w-full"><div id={containerId} className="h-full w-full" /></div>
+        {(!playerReady || playerError) && <div className="video-loading-overlay">
+          {playerError ? <div role="alert" className="space-y-3"><p>{t('The video could not load. Check your connection and try again.', 'वीडियो नहीं खुल पाया। इंटरनेट जाँचें और फिर कोशिश करें।')}</p><button className="ui-btn ui-btn-light" onClick={() => { setPlayerReady(false); setPlayerError(false); setBuffering(false); if (!window.YT?.Player) document.getElementById('yt-iframe-api')?.remove(); setAttempt((n) => n + 1); }}>{t('Try again', 'फिर कोशिश करें')}</button></div> : <LoadingState compact label={t('Loading video…', 'वीडियो लोड हो रहा है…')} />}
+        </div>}
+        {playerReady && buffering && !playerError && <div className="video-buffering"><BusyText>{t('Buffering…', 'वीडियो लोड हो रहा है…')}</BusyText></div>}
       </div>
 
       <div className="space-y-3 p-4">

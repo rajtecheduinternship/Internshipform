@@ -1,5 +1,9 @@
 'use client';
 
+import { BusyText } from '@/components/LoadingState';
+
+import LoadingState from '@/components/LoadingState';
+
 import { useState } from 'react';
 import StudentNavbar from '@/components/layout/StudentNavbar';
 import PortalFooter from '@/components/layout/PortalFooter';
@@ -50,7 +54,7 @@ export default function AccountPage() {
       <StudentNavbar />
       <main id="main-content" tabIndex={-1} className="portal-main">
         <div className="page-heading"><div><div className="ui-eyebrow">{t('YOUR DETAILS, YOUR CONTROL', 'आपकी जानकारी, आपका खाता')}</div><h1>{t('Make yourself at home.', 'अपना खाता सँभालें।')}</h1><p>{t('Check your details and keep your password safe.', 'अपनी जानकारी देखें और पासवर्ड सुरक्षित रखें।')}</p></div></div>
-        <div className="grid gap-6 md:grid-cols-[1fr_minmax(0,26rem)]">
+        {!student ? <LoadingState label={t('Loading your account', 'आपका खाता लोड हो रहा है')} /> : <div className="grid gap-6 md:grid-cols-[1fr_minmax(0,26rem)]">
           <section className="ui-card ui-card-pad">
             <div className="account-avatar">{student?.full_name.charAt(0) || <Icon name="user" size={28} />}</div><div className="ui-eyebrow">{t('Student account', 'छात्र खाता')}</div>
             <h1 className="ui-h1" style={{ marginTop: 2 }}>{student?.full_name || '…'}</h1>
@@ -75,10 +79,10 @@ export default function AccountPage() {
                 <div className="ui-muted" style={{ marginTop: 2 }}>{t('At least 8 characters.', 'कम से कम 8 अक्षर लिखें।')}</div></div>
               <div><label className="ui-label" htmlFor="conf">{t('Confirm new password', 'नया पासवर्ड फिर लिखें')}</label>
                 <input id="conf" type="password" required autoComplete="new-password" className={field} value={confirm} onChange={(e) => setConfirm(e.target.value)} /></div>
-              <button disabled={busy} className="ui-btn ui-btn-primary w-full">{busy ? t('Saving…', 'सेव हो रहा है…') : t('Update password', 'पासवर्ड बदलें')}</button>
+              <button disabled={busy} className="ui-btn ui-btn-primary w-full">{busy ? <BusyText>{t('Saving…', 'सेव हो रहा है…')}</BusyText> : t('Update password', 'पासवर्ड बदलें')}</button>
             </form>
           </section>
-        </div>
+        </div>}
       </main>
       <PortalFooter />
     </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import LoadingState from '@/components/LoadingState';
+
 import { useCopy, useLang } from '@/components/help/i18n';
 import { useAdminCopy } from '@/components/admin/copy';
 
@@ -88,7 +90,7 @@ export default function StudentsManager({ initialCourse }: { initialCourse?: str
         {/* Course rail */}
         <nav aria-label={t("Courses")} className="lg:sticky lg:top-4 lg:self-start">
           <div className="ui-eyebrow" style={{ marginBottom: 8 }}>{t("Course")}</div>
-          <div className="flex gap-1 overflow-x-auto lg:flex-col">
+          <div className="admin-student-courses flex gap-1 overflow-x-auto lg:flex-col">
             <RailItem active={course === 'all'} label={t("All students")} n={students?.length ?? 0} onClick={() => setCourse('all')} />
             {courses.map((c) => (
               <RailItem key={c.id} active={course === c.id} label={c.title} n={c.student_count} onClick={() => setCourse(c.id)} />
@@ -116,8 +118,19 @@ export default function StudentsManager({ initialCourse }: { initialCourse?: str
           {error && <ErrorNote>{copy('Student details could not load. Check your connection and try again.', 'छात्र की जानकारी नहीं खुल पाई। इंटरनेट जाँचें और फिर कोशिश करें।')} <button className="ui-link" onClick={load}>{copy('Try again', 'फिर कोशिश करें')}</button></ErrorNote>}
 
           <div className="ui-card overflow-x-auto">
-            {!students && error ? null : !students ? <div className="ui-skeleton m-4 h-40" /> : shown.length === 0 ? <Empty title={t("No students match")}>{t("Try another course or clear the filters.")}</Empty> : (
-              <table className="ui-table">
+            {!students && error ? null : !students ? <LoadingState /> : shown.length === 0 ? <Empty title={t("No students match")}>{t("Try another course or clear the filters.")}</Empty> : (
+              <>
+              <div className="admin-student-cards">{shown.map((s) => {
+                const pct = s.total_videos ? Math.round(s.completed_videos / s.total_videos * 100) : 0;
+                return <article key={s.id} className="admin-student-card">
+                  <button onClick={() => setOpenId(s.id)}><span>{s.full_name}</span><span aria-hidden="true">→</span></button>
+                  <div className="admin-student-meta"><span>{s.phone}</span><span>{s.course_title || t('No course')}</span></div>
+                  {s.college && <p className="ui-muted">{s.college}</p>}
+                  <Progress value={pct} label={`${s.full_name}: ${pct}%`} />
+                  <div className="admin-student-meta"><span>{pct}% · {s.completed_videos}/{s.total_videos} {copy('lessons', 'पाठ')}</span><span>{timeAgo(s.last_activity || s.last_login_at, lang)}</span></div>
+                </article>;
+              })}</div>
+              <table className="ui-table admin-student-table">
                 <thead><tr><th>{t("Student")}</th><th>{t("Course")}</th><th style={{ minWidth: 170 }}>{t("Progress")}</th><th>{t("Watch time")}</th><th>{t("Last active")}</th></tr></thead>
                 <tbody>
                   {shown.map((s) => {
@@ -143,6 +156,7 @@ export default function StudentsManager({ initialCourse }: { initialCourse?: str
                   })}
                 </tbody>
               </table>
+              </>
             )}
           </div>
         </div>
@@ -170,13 +184,15 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
   const [d, setD] = useState<Detail | null>(null);
   const [error, setError] = useState('');
   const [openMod, setOpenMod] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const reload = () => api<Detail>(`/api/admin/students/${id}`).then(setD).catch((e) => setError(e.message));
   useEffect(() => { reload(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeCourse = async (courseId: string) => {
+    setSaving(true);
     try { await api(`/api/admin/students/${id}`, 'PATCH', { course_id: courseId || null }); await reload(); onChanged(); }
-    catch (e) { setError((e as Error).message); }
+    catch (e) { setError((e as Error).message); } finally { setSaving(false); }
   };
 
   const all = d?.course?.modules.flatMap((m) => m.videos) || [];
@@ -194,8 +210,9 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
         <button className="ui-btn ui-btn-sm" onClick={onClose}>{t("Close")}</button>
       </div>
       <div className="space-y-5 p-5">
+        {saving && <LoadingState compact />}
         {error && <ErrorNote>{error}</ErrorNote>}
-        {!d && !error && <div className="ui-skeleton h-40" />}
+        {!d && !error && <LoadingState />}
         {d && (
           <>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-[13px]">
@@ -208,7 +225,7 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
 
             <div>
               <label className="ui-label" htmlFor="stu-course">{t("Course")}</label>
-              <select id="stu-course" className="ui-field" value={d.profile.course_id || ''} onChange={(e) => changeCourse(e.target.value)}>
+              <select disabled={saving} aria-busy={saving} id="stu-course" className="ui-field" value={d.profile.course_id || ''} onChange={(e) => changeCourse(e.target.value)}>
                 <option value="">{t("No course")}</option>
                 {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>

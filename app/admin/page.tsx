@@ -1,5 +1,7 @@
 'use client';
 
+import LoadingState, { BusyText, Spinner } from '@/components/LoadingState';
+
 import { useAdminCopy } from '@/components/admin/copy';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -57,6 +59,11 @@ export default function AdminPage() {
     media.addEventListener('change', close);
     return () => media.removeEventListener('change', close);
   }, []);
+  const [signingOut, setSigningOut] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [enquiriesLoading, setEnquiriesLoading] = useState(true);
+  const [enquiriesError, setEnquiriesError] = useState(false);
+  const [newsWorking, setNewsWorking] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -239,15 +246,18 @@ export default function AdminPage() {
   }, []);
 
   const fetchEnquiries = useCallback(async () => {
+    setEnquiriesLoading(true); setEnquiriesError(false);
     try {
       const res = await fetch('/api/enquiries');
+      if (!res.ok) throw new Error('enquiries');
       if (res.ok) {
         const data = await res.json();
         setEnquiries(data.enquiries || []);
       }
     } catch (e) {
+      setEnquiriesError(true);
       console.error('Enquiries fetch error:', e);
-    }
+    } finally { setEnquiriesLoading(false); }
   }, []);
 
   const fetchNews = useCallback(async () => {
@@ -279,7 +289,7 @@ export default function AdminPage() {
           fetchEnquiries();
         }
       })
-      .catch(() => undefined);
+      .catch(() => undefined).finally(() => setCheckingSession(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -300,7 +310,7 @@ export default function AdminPage() {
       if (response.ok) {
         setPassword('');
         setIsAuthenticated(true);
-        fetchSubmissions();
+        await fetchSubmissions();
         fetchAnalytics();
         fetchEnquiries();
       } else {
@@ -477,6 +487,8 @@ export default function AdminPage() {
   }, []);
   useEffect(() => { if (isAuthenticated) refreshOpenQuestions(); }, [isAuthenticated, refreshOpenQuestions]);
 
+  if (checkingSession) return <main className="portal-main"><LoadingState label={copy('Checking your session', 'आपका सत्र जाँचा जा रहा है')} /></main>;
+
   if (!isAuthenticated) {
     return (
       <div className="auth-page ui-page">
@@ -489,7 +501,7 @@ export default function AdminPage() {
           <form onSubmit={handleLogin} className="space-y-5" aria-busy={loading}>
             <div><label className="ui-label" htmlFor="admin-pw">{copy('Admin password', 'एडमिन पासवर्ड')}</label><input id="admin-pw" type="password" className="ui-field" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" /></div>
             {authError && <div role="alert" className="text-sm" style={{ color: 'var(--bad)' }}>{copy('Could not sign in. Check your password and connection, then try again.', 'लॉगिन नहीं हुआ। पासवर्ड और इंटरनेट जाँचकर फिर कोशिश करें।')}</div>}
-            <button type="submit" disabled={loading} className="ui-btn ui-btn-primary w-full">{loading ? copy('Checking…', 'जाँच रहे हैं…') : copy('Open admin workspace', 'एडमिन पेज खोलें')}<Icon name="arrow" size={17} /></button>
+            <button type="submit" disabled={loading} className="ui-btn ui-btn-primary w-full">{loading ? <BusyText>{copy('Checking…', 'जाँच रहे हैं…')}</BusyText> : copy('Open admin workspace', 'एडमिन पेज खोलें')}<Icon name="arrow" size={17} /></button>
           </form><div className="auth-register">{copy('Are you a student?', 'क्या आप छात्र हैं?')} <Link href="/portal/login">{copy('Go to student sign in', 'छात्र लॉगिन पर जाएँ')} →</Link></div>
         </div></main>
       </div>
@@ -543,13 +555,14 @@ export default function AdminPage() {
         <div><div className="admin-nav-label">{copy('WORKSPACE', 'काम की जगह')}</div><nav className="admin-nav" aria-label={copy('Admin sections', 'एडमिन के भाग')}>{TABS.map((item) => <button key={item.key} aria-current={activeTab === item.key ? 'page' : undefined} onClick={() => selectTab(item.key)}><Icon name={item.icon} size={19} /><span>{copy(item.label, item.hindi)}</span>{!!item.count && <span className={`admin-nav-count ${item.key === 'questions' ? 'needs-answer' : ''}`}>{item.count}</span>}</button>)}</nav></div>
         <div className="admin-sidebar-bottom"><span className="hero-label">{copy('HERE TO HELP YOU HELP', 'आपकी मदद के लिए')}</span><p>{copy('Less time finding things. More time helping students.', 'जानकारी खोजने में कम समय। छात्रों की मदद में ज़्यादा समय।')}</p><Walkthrough kind="admin" storageKey="rts_tour_admin" /><Link href="/portal/videos" className="mt-5"><Icon name="book" size={17} />{copy('Open student portal', 'छात्र पेज खोलें')} ↗</Link></div>
       </div>
-      <header className="admin-topbar"><div className="admin-topbar-title"><button className="icon-button admin-mobile-menu" aria-expanded={menuOpen} aria-label={copy('Open menu', 'मेन्यू खोलें')} onClick={() => setMenuOpen(true)}><Icon name="menu" size={19} /></button><span>{copy('Workspace', 'काम की जगह')} /</span><strong>{copy(current.label, current.hindi)}</strong></div><div className="admin-topbar-actions"><LangToggle /><button className="icon-button" onClick={refresh} aria-label={copy('Refresh data', 'जानकारी फिर लाएँ')} title={copy('Refresh data', 'जानकारी फिर लाएँ')}><Icon name="refresh" size={18} /></button><button className="icon-button" onClick={async () => {
+      <header className="admin-topbar"><div className="admin-topbar-title"><button className="icon-button admin-mobile-menu" aria-expanded={menuOpen} aria-label={copy('Open menu', 'मेन्यू खोलें')} onClick={() => setMenuOpen(true)}><Icon name="menu" size={19} /></button><span>{copy('Workspace', 'काम की जगह')} /</span><strong>{copy(current.label, current.hindi)}</strong></div><div className="admin-topbar-actions"><LangToggle /><button className="icon-button" onClick={refresh} aria-label={copy('Refresh data', 'जानकारी फिर लाएँ')} title={copy('Refresh data', 'जानकारी फिर लाएँ')}>{loading ? <Spinner /> : <Icon name="refresh" size={18} />}</button><button className="icon-button" disabled={signingOut} onClick={async () => {
+        setSigningOut(true);
         try { const res = await fetch('/api/admin/logout', { method: 'POST' }); if (!res.ok) throw new Error('logout'); setIsAuthenticated(false); setPassword(''); setSubmissions([]); }
-        catch { setAuthError(copy('Could not sign out. Please try again.', 'बाहर नहीं निकल पाए। फिर कोशिश करें।')); }
-      }} aria-label={copy('Sign out', 'बाहर निकलें')} title={copy('Sign out', 'बाहर निकलें')}><Icon name="logout" size={18} /></button></div></header>
+        catch { setAuthError(copy('Could not sign out. Please try again.', 'बाहर नहीं निकल पाए। फिर कोशिश करें।')); } finally { setSigningOut(false); }
+      }} aria-label={copy('Sign out', 'बाहर निकलें')} title={copy('Sign out', 'बाहर निकलें')}>{signingOut ? <Spinner /> : <Icon name="logout" size={18} />}</button></div></header>
       <main id="main-content" tabIndex={-1} className="admin-content">
         <section className="admin-context"><div className="page-heading"><div><div className="ui-eyebrow">{copy(current.label, current.hindi)}</div><h1>{current.description}</h1><p>{current.hint}</p></div>{activeTab === 'applications' && <button className="ui-btn ui-btn-primary" onClick={() => { setScratchForm(SCRATCH_DEFAULTS); setScratchResult(null); setScratchModalOpen(true); }}><Icon name="award" size={18} />{copy('New certificate', 'नया प्रमाणपत्र')}</button>}</div>
-          <div className="admin-action-strip"><p>{copy('Clear next steps. Everything in its place.', 'अगला कदम साफ़ है। हर चीज़ अपनी जगह है।')}</p><details className="admin-tools"><summary className="ui-btn ui-btn-sm"><Icon name="download" size={16} />{copy('Downloads', 'डाउनलोड')}</summary><div className="admin-tools-menu"><button onClick={exportToCSV}><Icon name="file" size={17} />{copy('Application records (CSV)', 'आवेदन रिकॉर्ड (CSV)')}</button><button onClick={downloadAllImagesAsZip} disabled={downloadingZip || submissions.length === 0}><Icon name="download" size={17} />{downloadingZip ? copy('Preparing images…', 'फ़ोटो तैयार हो रहे हैं…') : copy('All student images (ZIP)', 'सभी छात्रों के फ़ोटो (ZIP)')}</button></div></details></div>
+          <div className="admin-action-strip"><p>{copy('Clear next steps. Everything in its place.', 'अगला कदम साफ़ है। हर चीज़ अपनी जगह है।')}</p><details className="admin-tools"><summary className="ui-btn ui-btn-sm"><Icon name="download" size={16} />{copy('Downloads', 'डाउनलोड')}</summary><div className="admin-tools-menu"><button onClick={exportToCSV}><Icon name="file" size={17} />{copy('Application records (CSV)', 'आवेदन रिकॉर्ड (CSV)')}</button><button onClick={downloadAllImagesAsZip} disabled={downloadingZip || submissions.length === 0}><Icon name="download" size={17} />{downloadingZip ? <BusyText>{copy('Preparing images…', 'फ़ोटो तैयार हो रहे हैं…')}</BusyText> : copy('All student images (ZIP)', 'सभी छात्रों के फ़ोटो (ZIP)')}</button></div></details></div>
           {authError && <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--bad)' }}>{authError}</p>}
           {activeTab === 'analytics' && pendingCount > 0 && <div className="admin-alert mt-5"><Icon name="users" size={19} /><span>{copy(`${pendingCount} ${pendingCount === 1 ? 'application needs' : 'applications need'} your approval before students can enter.`, `${pendingCount} छात्रों के प्रवेश के लिए आपकी मंज़ूरी बाकी है।`)}</span><button onClick={() => { setApprovalFilter('pending'); selectTab('applications'); }}>{copy('Review applications', 'आवेदन जाँचें')} →</button></div>}
           {activeTab === 'analytics' && openQuestions > 0 && <div className="admin-alert mt-5"><Icon name="message" size={19} /><span>{copy(`${openQuestions} student question${openQuestions === 1 ? ' is' : 's are'} waiting for your reply.`, `${openQuestions} छात्रों के सवाल आपके जवाब का इंतज़ार कर रहे हैं।`)}</span><button onClick={() => selectTab('questions')}>{copy('Answer questions', 'सवालों के जवाब दें')} →</button></div>}
@@ -579,7 +592,11 @@ export default function AdminPage() {
               >{t("Refresh Leads")}</button>
             </div>
 
-            <div className="overflow-x-auto">
+            {enquiriesLoading ? <LoadingState label={copy('Loading enquiries', 'पूछताछ लोड हो रही है')} /> : enquiriesError ? <div role="alert" className="p-4 text-sm">{copy('Enquiries could not load.', 'पूछताछ नहीं खुल पाई।')} <button className="ui-link" onClick={fetchEnquiries}>{copy('Try again', 'फिर कोशिश करें')}</button></div> : <>
+            <div className="admin-enquiry-cards">{enquiries.map((enq) => <article key={enq.id} className="admin-student-card">
+              <strong>{enq.full_name}</strong><div className="admin-student-meta"><a className="ui-link" href={`tel:${enq.phone}`}>{enq.phone}</a><span>{enq.course_interest || '—'}</span></div><p className="ui-muted">{enq.college}</p><p className="text-sm break-words">{enq.message || '—'}</p><a className="ui-link text-sm break-all" href={`mailto:${enq.email}`}>{enq.email}</a>
+            </article>)}{!enquiries.length && <p className="p-4 ui-muted">{t('No enquiries submitted yet.')}</p>}</div>
+            <div className="overflow-x-auto admin-enquiry-table">
               <table className="min-w-full divide-y divide-gray-200 text-xs">
                 <thead className="bg-gray-50 text-gray-500 font-semibold uppercase">
                   <tr>
@@ -616,7 +633,7 @@ export default function AdminPage() {
                   )}
                 </tbody>
               </table>
-            </div>
+            </div></>}
           </div>
         </div>
       )}
@@ -688,7 +705,7 @@ export default function AdminPage() {
                 }}
                 className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#1b5e32] hover:bg-[#134624] disabled:opacity-50 transition-colors"
               >
-                {newsSubmitting ? copy('Adding…', 'जोड़ रहे हैं…') : copy('Publish notice', 'सूचना प्रकाशित करें')}
+                {newsSubmitting ? <BusyText>{copy('Adding…', 'जोड़ रहे हैं…')}</BusyText> : copy('Publish notice', 'सूचना प्रकाशित करें')}
               </button>
             </div>
           </div>
@@ -711,7 +728,7 @@ export default function AdminPage() {
             ) : (
               <div className="divide-y divide-gray-100">
                 {newsItems.map(item => (
-                  <div key={item.id} className="p-4 flex items-start justify-between gap-4 hover:bg-gray-50">
+                  <div key={item.id} className="admin-notice-row p-4 flex items-start justify-between gap-4 hover:bg-gray-50">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-900 font-medium leading-snug">{item.message}</p>
                       {item.link_url && (
@@ -729,33 +746,41 @@ export default function AdminPage() {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
+                        disabled={newsWorking !== null}
+                        aria-busy={newsWorking === item.id}
                         onClick={async () => {
+                          setNewsWorking(item.id);
                           try {
-                            await fetch('/api/admin/news', {
+                            const response = await fetch('/api/admin/news', {
                               method: 'PATCH',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ id: item.id, is_active: !item.is_active }),
                             });
-                            fetchNews();
-                          } catch {}
+                            if (!response.ok) throw new Error('notice');
+                            await fetchNews();
+                          } catch { setNewsError(copy('Could not update notice. Try again.', 'सूचना नहीं बदल पाई। फिर कोशिश करें।')); } finally { setNewsWorking(null); }
                         }}
                         className={`text-xs px-3 py-1.5 rounded font-medium transition-colors ${item.is_active ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
                       >
-                        {item.is_active ? t("Hide") : t("Show")}
+                        {newsWorking === item.id ? <BusyText>{t("Saving…")}</BusyText> : item.is_active ? t("Hide") : t("Show")}
                       </button>
                       <button
+                        disabled={newsWorking !== null}
+                        aria-busy={newsWorking === item.id}
                         onClick={async () => {
                           if (!confirm(t("Delete this news item?"))) return;
+                          setNewsWorking(item.id);
                           try {
-                            await fetch(`/api/admin/news?id=${item.id}`, {
+                            const response = await fetch(`/api/admin/news?id=${item.id}`, {
                               method: 'DELETE',
 
                             });
-                            fetchNews();
-                          } catch {}
+                            if (!response.ok) throw new Error('notice');
+                            await fetchNews();
+                          } catch { setNewsError(copy('Could not update notice. Try again.', 'सूचना नहीं बदल पाई। फिर कोशिश करें।')); } finally { setNewsWorking(null); }
                         }}
                         className="text-xs px-3 py-1.5 rounded font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                      >{t("Delete")}</button>
+                      >{newsWorking === item.id ? <BusyText>{t("Saving…")}</BusyText> : t("Delete")}</button>
                     </div>
                   </div>
                 ))}
