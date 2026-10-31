@@ -13,7 +13,8 @@
     "test:lms": "npm run test:completion && npm run test:classes && npm run test:exams && npm run test:exam-results",
     "test:learning-ui": "node scripts/test-learning-ui.cjs",
     "test:exam-results": "node scripts/test-exam-results.cjs",
-    "test:learning-e2e": "node scripts/test-learning-e2e.cjs"
+    "test:learning-e2e": "node scripts/test-learning-e2e.cjs",
+    "test:admin-ux": "node scripts/test-admin-ux.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.997.0",

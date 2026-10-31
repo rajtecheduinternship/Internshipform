@@ -6,7 +6,8 @@ import LoadingState from '@/components/LoadingState';
 
 import { useAdminCopy } from '@/components/admin/copy';
 
-import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { useAdminDraft, useAdminNavigation } from './UnsavedChanges';
 import { api } from './api';
 import { Badge, ConfirmDialog, Drawer, Empty, ErrorNote, Thumb } from '@/components/ui';
 
@@ -26,6 +27,7 @@ type Confirm = { title: string; body: ReactNode; label: string; run: () => Promi
 
 export default function CoursesManager() {
   const t = useAdminCopy();
+  const { canLeave } = useAdminNavigation();
   const [view, setView] = useState<'courses' | 'modules'>('courses');
   const [courses, setCourses] = useState<Course[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,14 +132,14 @@ export default function CoursesManager() {
       )}
 
       {editCourse && (
-        <Drawer onClose={() => setEditCourse(null)}>
+        <Drawer onClose={() => { if (canLeave()) setEditCourse(null); }}>
           <CourseEditor id={editCourse === 'new' ? null : editCourse} allModules={modules}
-            onClose={() => setEditCourse(null)} onChanged={load} />
+            onClose={() => { if (canLeave()) setEditCourse(null); }} onChanged={load} />
         </Drawer>
       )}
       {editModule && (
-        <Drawer onClose={() => setEditModule(null)}>
-          <ModuleEditor id={editModule === 'new' ? null : editModule} allCourses={courses ?? []} onClose={() => setEditModule(null)} onChanged={load} />
+        <Drawer onClose={() => { if (canLeave()) setEditModule(null); }}>
+          <ModuleEditor id={editModule === 'new' ? null : editModule} allCourses={courses ?? []} onClose={() => { if (canLeave()) setEditModule(null); }} onChanged={load} />
         </Drawer>
       )}
       {confirm && <ConfirmDialog title={confirm.title} body={confirm.body} confirmLabel={confirm.label} onConfirm={doConfirm} onCancel={() => setConfirm(null)} />}
@@ -165,10 +167,13 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
 
+  const original = useRef(JSON.stringify(f));
+  useAdminDraft(!loading && JSON.stringify(f) !== original.current, saving);
+
   useEffect(() => {
     if (!id) return;
     api<{ course: Course & { modules: { id: string }[] } }>(`/api/admin/courses/${id}`).then((d) => {
-      setF({ title: d.course.title, description: d.course.description || '', thumbnail_url: d.course.thumbnail_url || '', duration_weeks: String(d.course.duration_weeks || 5), duration_hours: String(d.course.duration_hours || 90) });
+      const value = { title: d.course.title, description: d.course.description || '', thumbnail_url: d.course.thumbnail_url || '', duration_weeks: String(d.course.duration_weeks || 5), duration_hours: String(d.course.duration_hours || 90) }; setF(value); original.current = JSON.stringify(value);
       setAttached(d.course.modules.map((m) => m.id));
     }).catch((e) => setMsg({ ok: false, t: e.message })).finally(() => setLoading(false));
   }, [id]);
@@ -179,7 +184,7 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
     try {
       if (courseId) await api(`/api/admin/courses/${courseId}`, 'PATCH', body);
       else { const r = await api<{ course: { id: string } }>('/api/admin/courses', 'POST', body); setCourseId(r.course.id); }
-      setMsg({ ok: true, t: 'Saved' }); onChanged();
+      original.current = JSON.stringify(f); setMsg({ ok: true, t: 'Saved' }); onChanged();
     } catch (e) { setMsg({ ok: false, t: (e as Error).message }); } finally { setSaving(false); }
   };
   const saveModules = async (next: string[]) => {
@@ -279,24 +284,31 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
   const blank = { title: '', youtube_url: '', duration_minutes: '', description: '', thumbnail_url: '', required_watch_percent: 90, publish: false };
   const [nv, setNv] = useState(blank);
 
+  const original = useRef(JSON.stringify({ f, courseIds }));
+  const editOriginal = useRef('');
+  const detailsDirty = JSON.stringify({ f, courseIds }) !== original.current;
+  const canLeave = useAdminDraft(!loading && (detailsDirty || JSON.stringify(nv) !== JSON.stringify(blank) || (!!editVid && JSON.stringify(ev) !== editOriginal.current)), saving);
+
   const reload = useCallback((mid: string) => {
     setLoading(true);
     return api<{ module: ModuleSummary & { videos: AdminVideo[]; course_ids: string[] } }>(`/api/admin/modules/${mid}`).then((d) => {
-      setF({ title: d.module.title, description: d.module.description || '', thumbnail_url: d.module.thumbnail_url || '', is_mandatory: !!d.module.is_mandatory });
+      const value = { title: d.module.title, description: d.module.description || '', thumbnail_url: d.module.thumbnail_url || '', is_mandatory: !!d.module.is_mandatory }; setF(value); original.current = JSON.stringify({ f: value, courseIds: d.module.course_ids || [] });
       setModPublished(d.module.is_published !== false);
       setVideos(d.module.videos); setCourseIds(d.module.course_ids || []);
     }).catch((e) => setMsg({ ok: false, t: e.message })).finally(() => setLoading(false));
   }, []);
   useEffect(() => { if (id) reload(id); }, [id, reload]);
 
-  const act = async (fn: () => Promise<unknown>, ok = 'Saved') => {
+  const act = async (fn: () => Promise<unknown>, ok = 'Saved', savingDetails = false) => {
+    if (detailsDirty && !savingDetails && !canLeave()) return;
     setSaving(true);
     try { await fn(); setMsg({ ok: true, t: ok }); if (moduleId) await reload(moduleId); onChanged(); }
     catch (e) { setMsg({ ok: false, t: (e as Error).message }); } finally { setSaving(false); }
   };
   const startEdit = (v: AdminVideo) => {
+    if (editVid && JSON.stringify(ev) !== editOriginal.current && !canLeave()) return;
     setEditVid(v.id);
-    setEv({ title: v.title, youtube_url: v.youtube_video_id, duration_minutes: String(Math.round((v.duration_seconds / 60) * 10) / 10), description: v.description || '', thumbnail_url: v.thumbnail_url || '', required_watch_percent: v.required_watch_percent });
+    const value = { title: v.title, youtube_url: v.youtube_video_id, duration_minutes: String(Math.round((v.duration_seconds / 60) * 10) / 10), description: v.description || '', thumbnail_url: v.thumbnail_url || '', required_watch_percent: v.required_watch_percent }; setEv(value); editOriginal.current = JSON.stringify(value);
   };
   const move = (idx: number, dir: -1 | 1) => {
     const live = videos.filter((x) => !x.archived_at).map((x) => x.id);
@@ -308,7 +320,8 @@ function ModuleEditor({ id, allCourses, onClose, onChanged }: { id: string | nul
   const saveDetails = () => act(async () => {
     if (moduleId) await api(`/api/admin/modules/${moduleId}`, 'PATCH', { ...f, course_ids: courseIds });
     else { const r = await api<{ module: { id: string } }>('/api/admin/modules', 'POST', { ...f, course_ids: courseIds }); setModuleId(r.module.id); }
-  });
+    original.current = JSON.stringify({ f, courseIds });
+  }, 'Saved', true);
 
   return (
     <>

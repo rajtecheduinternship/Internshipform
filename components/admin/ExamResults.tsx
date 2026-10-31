@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import EditorDrawer from './EditorDrawer';
 import { api } from './api';
 import { useCopy } from '@/components/help/i18n';
 import { classTime } from '@/lib/class-calendar';
@@ -39,13 +40,13 @@ export default function ExamResults({ examId, studentId }: { examId?: string; st
       {r.submitted_at ? <><p>{t('Appeared · Submitted', 'परीक्षा दी · जमा की')} · {r.correct_count}/{r.total_questions} · {r.score_percent}% · {r.passed ? t('Passed', 'उत्तीर्ण') : t('Not passed', 'अनुत्तीर्ण')}</p><p>{r.result_published_at ? `${t('Result published', 'परिणाम प्रकाशित')} · ${classTime(r.result_published_at)} IST` : t('Private result · student sees submission only, not marks', 'निजी परिणाम · छात्र को केवल जमा होने की स्थिति दिखती है, अंक नहीं')}</p><div className="flex flex-wrap gap-2"><button className="ui-btn" disabled={busy} onClick={() => run(async () => { setReview((await api<{ review: AdminAnswerReview }>(`/api/admin/exams/${r.exam_id}/results/${r.id}`)).review); })}>{t('Review answers & calculation', 'उत्तर और गणना देखें')}</button><button className="ui-btn ui-btn-primary" disabled={busy} onClick={() => publish(!r.result_published_at, r)}>{r.result_published_at ? t('Make result private', 'परिणाम निजी करें') : t('Publish result', 'परिणाम प्रकाशित करें')}</button></div></> : <p>{t('In progress until', 'इस समय तक जारी')}: {classTime(r.deadline_at)} IST</p>}
       <small>{t('Visibility changes', 'दृश्यता बदलाव')}: {r.focus_events}</small>
     </article>)}
-    {review && <section className="border-t pt-4 space-y-4" aria-label={t('Answer sheet review', 'उत्तर-पत्र की समीक्षा')}>
+    {review && <EditorDrawer title={t('Answer sheet review', 'उत्तर-पत्र की समीक्षा')} onClose={() => setReview(null)}><section className="space-y-4" aria-label={t('Answer sheet review', 'उत्तर-पत्र की समीक्षा')}>
       <div className="flex flex-wrap justify-between gap-2"><h3 className="ui-h2">{review.full_name} · {review.exam_title}</h3><button className="ui-btn" onClick={() => setReview(null)}>{t('Close answer review', 'उत्तर समीक्षा बंद करें')}</button></div>
       <p>{t('Equal-weight marking: 1 mark for a correct answer; 0 for incorrect or unanswered. No negative marks.', 'समान अंक: सही उत्तर पर 1 अंक; गलत या खाली उत्तर पर 0। कोई नकारात्मक अंक नहीं।')}</p>
       <p>{t('Calculation', 'गणना')}: {review.grade.correct_count} ÷ {review.grade.total_questions} × 100 = {review.grade.score_percent}% · {t('Pass threshold', 'उत्तीर्ण सीमा')}: {review.grade.pass_percent}%</p>
       <p>{t('Correct / Incorrect / Unanswered', 'सही / गलत / खाली')}: {review.grade.correct_count} / {review.grade.incorrect_count} / {review.grade.unanswered_count}</p>
       <p className="ui-muted">{t('Passing uses the unrounded ratio. Answers and keys below are the saved, shuffled attempt—not the current question bank.', 'उत्तीर्ण स्थिति बिना राउंड किए अनुपात से तय होती है। नीचे सेव किए प्रयास के क्रम वाले उत्तर हैं, वर्तमान प्रश्न बैंक के नहीं।')}</p>
       {review.grade.questions.map((q, i) => <article key={q.id} className="ui-card ui-card-pad space-y-2"><h4 className="font-semibold">{i + 1}. {q.prompt}</h4><ol>{q.options.map((v, n) => <li key={n}>{String.fromCharCode(65 + n)}) {v}{n === q.selected_index ? ` · ${t('Student selected', 'छात्र ने चुना')}` : ''}{n === q.correct_index ? ` · ${t('Correct answer', 'सही उत्तर')}` : ''}</li>)}</ol><p>{t('Student answer', 'छात्र का उत्तर')}: {q.selected_index === null ? t('Unanswered', 'खाली') : `${String.fromCharCode(65 + q.selected_index)}) ${q.selected_answer}`}</p><p>{t('Correct answer', 'सही उत्तर')}: {String.fromCharCode(65 + q.correct_index)}) {q.correct_answer}</p><strong>{t('Marks awarded', 'प्राप्त अंक')}: {q.marks_awarded}/{q.maximum_marks}</strong></article>)}
-    </section>}
+    </section></EditorDrawer>}
   </section>;
 }

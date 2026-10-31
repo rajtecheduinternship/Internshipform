@@ -4,7 +4,7 @@ import { useCopy } from '@/components/help/i18n';
 import { classDay, classTime } from '@/lib/class-calendar';
 import type { LiveClass } from '@/lib/live-classes';
 
-export default function ClassCalendar({ classes, now }: { classes: LiveClass[]; now: number }) {
+export default function ClassCalendar({ classes, now, admin = false, onEdit }: { classes: LiveClass[]; now: number; admin?: boolean; onEdit?: (c: LiveClass) => void }) {
   const t = useCopy();
   const today = classDay(new Date(now));
   const [month, setMonth] = useState(today.slice(0, 7));
@@ -27,9 +27,10 @@ export default function ClassCalendar({ classes, now }: { classes: LiveClass[]; 
     <h3 className="font-semibold">{day} · IST</h3>
     {!selected.length && <p>{t('No classes scheduled for this day.', 'इस दिन कोई कक्षा तय नहीं है।')}</p>}
     {selected.map((c) => <article key={c.id} className="ui-card ui-card-pad space-y-2">
-      <h3 className="ui-h2">{c.title}</h3><p className="ui-muted">{c.course_title}{c.module_title ? ` · ${c.module_title}` : ''}</p>
+      <h3 className="ui-h2">{c.title}</h3>{admin && <p>{!c.is_published ? t('Draft · not visible to students', 'ड्राफ्ट · छात्रों को नहीं दिखता') : t('Published', 'प्रकाशित')}</p>}<p className="ui-muted">{c.course_title}{c.module_title ? ` · ${c.module_title}` : ''}</p>
       <p>{classTime(c.starts_at)} – {classTime(c.ends_at)} IST</p><p className="whitespace-pre-wrap">{c.description}</p>
-      {c.is_cancelled ? <p role="status">{t('Cancelled', 'रद्द की गई')}</p> : +new Date(c.ends_at) <= now ? <p>{t('Class ended', 'कक्षा समाप्त हो गई')}</p> : <a className="ui-btn ui-btn-primary" href={c.meet_url} target="_blank" rel="noopener noreferrer">{t('Join Google Meet', 'Google Meet से जुड़ें')} ↗</a>}
+      {onEdit && <button className="ui-btn" onClick={() => onEdit(c)}>{t('Edit / publish', 'बदलें / प्रकाशित करें')}</button>}
+      {c.is_cancelled ? <p role="status">{t('Cancelled', 'रद्द की गई')}</p> : admin && !c.is_published ? null : +new Date(c.ends_at) <= now ? <p>{t('Class ended', 'कक्षा समाप्त हो गई')}</p> : <a className="ui-btn ui-btn-primary" href={c.meet_url} target="_blank" rel="noopener noreferrer">{t('Join Google Meet', 'Google Meet से जुड़ें')} ↗</a>}
     </article>)}
   </section>;
 }

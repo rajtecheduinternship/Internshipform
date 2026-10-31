@@ -1,12 +1,13 @@
 'use client';
 
+import { useAdminDraft, useAdminNavigation } from './UnsavedChanges';
 import ExamResults from './ExamResults';
 import LoadingState from '@/components/LoadingState';
 
 import { useCopy, useLang } from '@/components/help/i18n';
 import { useAdminCopy } from '@/components/admin/copy';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import { Badge, Drawer, Empty, ErrorNote, Progress, Thumb, fmtHours, timeAgo } from '@/components/ui';
 
@@ -195,10 +196,12 @@ function EditStudent({ id, profile, onSaved }: { id: string; profile: Detail['pr
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const originalValues = useRef(JSON.stringify(start()));
+  const canLeave = useAdminDraft(open && (JSON.stringify(vals) !== originalValues.current || !!password), busy);
 
   const send = async (body: Record<string, unknown>, done: string) => {
     setBusy(true); setMsg(null);
-    try { await api(`/api/admin/students/${id}`, 'PATCH', body); setMsg({ ok: true, text: done }); setPassword(''); onSaved(); }
+    try { await api(`/api/admin/students/${id}`, 'PATCH', body); setMsg({ ok: true, text: done }); setPassword(''); if (!('password' in body) && !('reset_password' in body)) originalValues.current = JSON.stringify(vals); onSaved(); }
     catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
   };
   const saveDetails = () => {
@@ -208,10 +211,10 @@ function EditStudent({ id, profile, onSaved }: { id: string; profile: Detail['pr
     void send(changed, t('Details saved.'));
   };
 
-  if (!open) return <button className="ui-btn ui-btn-sm" onClick={() => setOpen(true)}>{t('Edit student details & password')}</button>;
+  if (!open) return <button className="ui-btn ui-btn-sm" onClick={() => { const initial = start(); setVals(initial); originalValues.current = JSON.stringify(initial); setOpen(true); }}>{t('Edit student details & password')}</button>;
   return (
     <div className="ui-card ui-card-pad space-y-4">
-      <div className="flex items-center justify-between gap-3"><div className="ui-eyebrow">{t('Edit student')}</div><button className="ui-link" onClick={() => setOpen(false)}>{t('Hide')}</button></div>
+      <div className="flex items-center justify-between gap-3"><div className="ui-eyebrow">{t('Edit student')}</div><button className="ui-link" onClick={() => { if (canLeave()) setOpen(false); }}>{t('Hide')}</button></div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {EDIT_FIELDS.map((f) => <div key={f.key} className={f.wide ? 'sm:col-span-2' : ''}>
           <label className="ui-label" htmlFor={`edit-${f.key}`}>{t(f.label)}</label>
@@ -235,6 +238,9 @@ function EditStudent({ id, profile, onSaved }: { id: string; profile: Detail['pr
 
 function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; courses: CourseOpt[]; onClose: () => void; onChanged: () => void }) {
   const t = useAdminCopy();
+  const copy = useCopy(); const { canLeave } = useAdminNavigation();
+  const [view, setView] = useState<'profile' | 'learning' | 'exams'>('profile');
+  const close = () => { if (canLeave()) onClose(); };
   const { lang } = useLang();
   const [d, setD] = useState<Detail | null>(null);
   const [error, setError] = useState('');
@@ -256,13 +262,13 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
   const pct = all.length ? Math.round((done / all.length) * 100) : 0;
 
   return (
-    <Drawer onClose={onClose}>
+    <Drawer onClose={close}>
       <div className="ui-card-head" style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
         <div className="min-w-0">
           <div className="ui-h2 truncate">{d?.profile.full_name || t("Student")}</div>
           <div className="ui-muted">{t("Student record")}</div>
         </div>
-        <button className="ui-btn ui-btn-sm" onClick={onClose}>{t("Close")}</button>
+        <button className="ui-btn ui-btn-sm" onClick={close}>{t("Close")}</button>
       </div>
       <div className="space-y-5 p-4 sm:p-5">
         {saving && <LoadingState compact />}
@@ -270,6 +276,8 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
         {!d && !error && <LoadingState />}
         {d && (
           <>
+            <nav className="admin-view-tabs" aria-label={copy('Student record areas', 'छात्र रिकॉर्ड के भाग')}>{([['profile','Profile','प्रोफ़ाइल'],['learning','Learning Progress','पढ़ाई की प्रगति'],['exams','Examinations','परीक्षाएँ']] as const).map(([key,en,hi]) => <button key={key} className={`ui-btn ${view === key ? 'ui-btn-primary' : ''}`} aria-current={view === key ? 'page' : undefined} onClick={() => { if (canLeave()) setView(key); }}>{copy(en,hi)}</button>)}</nav>
+            {view === 'profile' && <>
             <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-[13px] min-[480px]:grid-cols-2">
               <Field label={t("Phone")} value={d.profile.phone} />
               <Field label={t("Email")} value={d.profile.email} />
@@ -278,7 +286,6 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
               <Field label={t("Last sign-in")} value={timeAgo(d.profile.last_login_at, lang)} />
             </dl>
 
-            <ExamResults key={`exams-${id}`} studentId={id} />
             <EditStudent key={id} id={id} profile={d.profile} onSaved={() => { void reload(); onChanged(); }} />
 
             <div>
@@ -290,7 +297,9 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
               <div className="ui-muted" style={{ marginTop: 4 }}>{t("Changing the course swaps the lectures this student sees. Past progress is kept.")}</div>
             </div>
 
-            {d.course ? (
+            </>}
+            {view === 'exams' && <ExamResults key={`exams-${id}`} studentId={id} />}
+            {view === 'learning' && (d.course ? (
               <>
                 <div className="grid grid-cols-3 gap-3">
                   <Mini label={t("Completed")} value={`${done}/${all.length}`} />
@@ -339,7 +348,7 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
                   </div>
                 </div>
               </>
-            ) : <Empty title={t("No course assigned")}>{t("Pick one above to give this student their lectures.")}</Empty>}
+            ) : <Empty title={t("No course assigned")}>{t("Pick one above to give this student their lectures.")}</Empty>)}
           </>
         )}
       </div>

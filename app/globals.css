@@ -727,3 +727,19 @@ html[lang="hi"] .learning-hero h2, html[lang="hi"] .page-heading h1 { line-heigh
   .ui-drawer .ui-btn-sm { width: auto; }
   .ui-drawer .ui-card-pad .flex-wrap > .ui-btn { flex: 1 1 auto; }
 }
+
+/* Admin workspace: task groups, predictable editor surfaces and responsive controls. */
+.admin-nav-groups { display: grid; gap: 22px; }
+.admin-nav-groups .admin-nav-label { margin-bottom: 8px; }
+.admin-editor-header { position: sticky; top: 0; z-index: 2; background: var(--surface); gap: 12px; }
+.admin-editor-header h2 { min-width: 0; overflow-wrap: anywhere; }
+.admin-editor-header button { flex-shrink: 0; }
+.admin-editor-body { overflow-wrap: anywhere; }
+.admin-editor-body .ui-field { max-width: 100%; min-width: 0; }
+.admin-view-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-filter-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); gap: 16px; }
+.admin-topbar { position: sticky; top: 0; z-index: 40; }
+@media(max-width: 640px) {
+  .admin-view-tabs .ui-btn { flex: 1 1 auto; }
+  .admin-editor-body .flex > span { min-width: 0; }
+}

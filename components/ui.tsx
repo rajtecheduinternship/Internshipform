@@ -120,12 +120,12 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel, 
   );
 }
 
-export function Drawer({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+export function Drawer({ onClose, children, title }: { onClose: () => void; children: ReactNode; title?: string }) {
   const t = useCopy();
   const ref = useDialogFocus(true, onClose);
   return (
     <div className="ui-overlay" onClick={onClose}>
-      <div ref={ref} tabIndex={-1} className="ui-drawer" role="dialog" aria-modal="true" aria-label={t('Edit details', 'जानकारी बदलें')} onClick={(e) => e.stopPropagation()}>{children}</div>
+      <div ref={ref} tabIndex={-1} className="ui-drawer" role="dialog" aria-modal="true" aria-label={title || t('Edit details', 'जानकारी बदलें')} onClick={(e) => e.stopPropagation()}>{children}</div>
     </div>
   );
 }

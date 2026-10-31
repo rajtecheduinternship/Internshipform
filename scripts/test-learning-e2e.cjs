@@ -124,6 +124,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r,ms));
     async function screenshot(page,name) {if(process.env.SCREENSHOT_DIR){fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,name+'.png'),fullPage:true});}}
     await screenshot(ap,'real-admin-answer-review');
     await ap.setViewportSize({width:320,height:900});assert(await ap.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await screenshot(ap,'real-admin-answer-review-mobile');
+    await ap.getByRole('button',{name:'Close answer review',exact:true}).click();
     await ap.getByRole('button',{name:'Publish result',exact:true}).click();await ap.getByText('Results published to students.',{exact:true}).waitFor();
     await sp.getByRole('button',{name:'Refresh result',exact:true}).click();await sp.getByRole('heading',{name:'Result published',exact:true}).waitFor();
     assert((await json(student,attemptUrl)).attempt.score_percent===33.33);assert.equal(JSON.stringify((await json(student,attemptUrl)).attempt).includes('correct_index'),false);
