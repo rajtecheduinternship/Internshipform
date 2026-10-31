@@ -718,3 +718,11 @@ html[lang="hi"] .learning-hero h2, html[lang="hi"] .page-heading h1 { line-heigh
   .admin-notice-row { flex-direction: column; gap: 10px; }
   .admin-notice-row > div:last-child button { min-height: 44px; }
 }
+
+/* Admin students: keep the list and the student drawer inside the phone viewport. */
+@media (max-width: 640px) {
+  .ui-drawer { width: 100vw; max-width: 100vw; overflow-x: hidden; margin-block: -1rem; }
+  .ui-drawer .ui-card-head .ui-btn { flex-shrink: 0; }
+  .ui-drawer .ui-btn-sm { width: auto; }
+  .ui-drawer .ui-card-pad .flex-wrap > .ui-btn { flex: 1 1 auto; }
+}

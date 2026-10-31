@@ -87,9 +87,9 @@ export default function StudentsManager({ initialCourse }: { initialCourse?: str
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6">
         {/* Course rail */}
-        <nav aria-label={t("Courses")} className="lg:sticky lg:top-4 lg:self-start">
+        <nav aria-label={t("Courses")} className="min-w-0 lg:sticky lg:top-4 lg:self-start">
           <div className="ui-eyebrow" style={{ marginBottom: 8 }}>{t("Course")}</div>
           <div className="admin-student-courses flex gap-1 overflow-x-auto lg:flex-col">
             <RailItem active={course === 'all'} label={t("All students")} n={students?.length ?? 0} onClick={() => setCourse('all')} />
@@ -101,14 +101,14 @@ export default function StudentsManager({ initialCourse }: { initialCourse?: str
         </nav>
 
         <div className="min-w-0 space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <input className="ui-field" style={{ maxWidth: 300 }} placeholder={t("Search name, phone, college, roll no.")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("Search students")} />
-            <select className="ui-field" style={{ maxWidth: 260 }} value={activeCollege}
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <input className="ui-field w-full sm:max-w-[300px] sm:flex-1" placeholder={t("Search name, phone, college, roll no.")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("Search students")} />
+            <select className="ui-field w-full sm:max-w-[260px]" value={activeCollege}
               onChange={(e) => setCollege(e.target.value)} aria-label={t("Filter by college")}>
               <option value="all">{t("All colleges")} ({inCourse.length})</option>
               {colleges.map(([k, n]) => <option key={k} value={k}>{k} ({n})</option>)}
             </select>
-            <div className="flex flex-wrap gap-1" role="group" aria-label={t("Filter by status")}>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("Filter by status")}>
               {(Object.keys(STATUS_LABEL) as Status[]).map((s) => (
                 <button key={s} className={`ui-btn ui-btn-sm ${status === s ? 'ui-btn-primary' : ''}`} onClick={() => setStatus(s)} aria-pressed={status === s}>
                   {t(STATUS_LABEL[s])} <span className="tnum" style={{ opacity: 0.7 }}>{counts[s]}</span>
@@ -210,8 +210,8 @@ function EditStudent({ id, profile, onSaved }: { id: string; profile: Detail['pr
   if (!open) return <button className="ui-btn ui-btn-sm" onClick={() => setOpen(true)}>{t('Edit student details & password')}</button>;
   return (
     <div className="ui-card ui-card-pad space-y-4">
-      <div className="flex items-center justify-between"><div className="ui-eyebrow">{t('Edit student')}</div><button className="ui-link" onClick={() => setOpen(false)}>{t('Hide')}</button></div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="flex items-center justify-between gap-3"><div className="ui-eyebrow">{t('Edit student')}</div><button className="ui-link" onClick={() => setOpen(false)}>{t('Hide')}</button></div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {EDIT_FIELDS.map((f) => <div key={f.key} className={f.wide ? 'sm:col-span-2' : ''}>
           <label className="ui-label" htmlFor={`edit-${f.key}`}>{t(f.label)}</label>
           <input id={`edit-${f.key}`} className="ui-field" type={f.type || 'text'} value={vals[f.key]} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
@@ -263,13 +263,13 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
         </div>
         <button className="ui-btn ui-btn-sm" onClick={onClose}>{t("Close")}</button>
       </div>
-      <div className="space-y-5 p-5">
+      <div className="space-y-5 p-4 sm:p-5">
         {saving && <LoadingState compact />}
         {error && <ErrorNote>{error}</ErrorNote>}
         {!d && !error && <LoadingState />}
         {d && (
           <>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-[13px]">
+            <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-[13px] min-[480px]:grid-cols-2">
               <Field label={t("Phone")} value={d.profile.phone} />
               <Field label={t("Email")} value={d.profile.email} />
               <Field label={t("College")} value={d.profile.college || '—'} />
@@ -346,7 +346,7 @@ function StudentDrawer({ id, courses, onClose, onChanged }: { id: string; course
 }
 
 function Field({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0"><dt className="ui-eyebrow">{label}</dt><dd className="truncate" style={{ marginTop: 2 }}>{value}</dd></div>;
+  return <div className="min-w-0"><dt className="ui-eyebrow">{label}</dt><dd className="break-words" style={{ marginTop: 2 }}>{value}</dd></div>;
 }
 function Mini({ label, value }: { label: string; value: string }) {
   return <div className="ui-card" style={{ padding: '0.625rem 0.75rem' }}><div className="ui-eyebrow">{label}</div><div className="tnum" style={{ fontSize: '1.125rem', fontWeight: 650 }}>{value}</div></div>;
