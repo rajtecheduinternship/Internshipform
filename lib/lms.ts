@@ -39,11 +39,18 @@ export { isUuid };
 
 // ==================== PUBLIC ====================
 
+/**
+ * Courses that stay published for the students already in them but are closed to new applicants.
+ * Hidden from the application form and refused by the submit API; nothing else reads this list.
+ */
+export const CLOSED_FOR_NEW_APPLICATIONS: readonly string[] = ['accounting-tally-with-gst', 'it-sector', 'office-administration'];
+
 /** Published courses for the application form dropdown / public catalogue. */
 export async function listPublishedCourses(): Promise<Pick<CourseRow, 'id' | 'title' | 'slug' | 'description' | 'thumbnail_url' | 'duration_weeks' | 'category'>[]> {
   const r = await pool().query(
     `SELECT id, title, slug, description, thumbnail_url, duration_weeks, category
-       FROM courses WHERE is_published = true ORDER BY title ASC`
+       FROM courses WHERE is_published = true AND NOT (slug = ANY($1::text[])) ORDER BY title ASC`,
+    [CLOSED_FOR_NEW_APPLICATIONS]
   );
   return r.rows;
 }
@@ -52,6 +59,12 @@ export async function getPublishedCourse(id: string): Promise<CourseRow | null> 
   if (!isUuid(id)) return null;
   const r = await pool().query(`SELECT * FROM courses WHERE id = $1 AND is_published = true`, [id]);
   return r.rows[0] || null;
+}
+
+/** A course a new applicant may choose: published and not closed to new applications. */
+export async function getApplicableCourse(id: string): Promise<CourseRow | null> {
+  const course = await getPublishedCourse(id);
+  return course && !CLOSED_FOR_NEW_APPLICATIONS.includes(course.slug) ? course : null;
 }
 
 // ==================== STUDENT ====================

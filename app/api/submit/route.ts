@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { InternshipFormData } from '@/lib/types';
-import { getPublishedCourse } from '@/lib/lms';
+import { getApplicableCourse } from '@/lib/lms';
 import {
   cleanText,
   containsSpam,
@@ -325,7 +325,7 @@ export async function POST(request: NextRequest) {
     }
 
     // The chosen course must exist and be published (admin-defined, so checked against the DB)
-    const course = await getPublishedCourse(String(data.courseId));
+    const course = await getApplicableCourse(String(data.courseId));
     if (!course) {
       return NextResponse.json({ error: 'Please select a valid course.' }, { status: 400 });
     }
