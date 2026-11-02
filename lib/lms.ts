@@ -126,13 +126,14 @@ export async function getStudentCourse(courseId: string | null | undefined, stud
 
 /** A video the student is allowed to watch (in their course, published, not archived). */
 export async function getVideoForStudent(videoId: string, courseId: string | null | undefined, studentId: string) {
-  if (!isUuid(videoId) || !courseId || !await getPublishedCourse(courseId)) return null;
+  if (!isUuid(videoId) || !isUuid(courseId)) return null;
   const r = await pool().query(
     `SELECT v.id, v.module_id, v.title, v.description, v.youtube_video_id, v.thumbnail_url,
             v.duration_seconds, v.required_watch_percent, v.order_index, v.is_published,
             p.id AS p_id, p.total_seconds_watched, p.completion_percentage, p.is_completed,
             p.last_watched_position, p.watched_intervals
        FROM videos v
+       JOIN courses pc ON pc.id = $2 AND pc.is_published
        JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $2))
        LEFT JOIN video_progress p ON p.video_id = v.id AND p.student_id = $3
       WHERE v.id = $1 AND v.is_published = true AND v.archived_at IS NULL
@@ -158,10 +159,11 @@ export async function getVideoForStudent(videoId: string, courseId: string | nul
 
 /** Access check + the facts the server needs to validate progress. */
 export async function getVideoAccessMeta(videoId: string, courseId: string | null | undefined) {
-  if (!isUuid(videoId) || !courseId || !await getPublishedCourse(courseId)) return null;
+  if (!isUuid(videoId) || !isUuid(courseId)) return null;
   const r = await pool().query(
     `SELECT v.id, v.duration_seconds, v.required_watch_percent
-       FROM videos v JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $2))
+       FROM videos v JOIN courses pc ON pc.id = $2 AND pc.is_published
+       JOIN modules mm ON mm.id = v.module_id AND mm.is_published AND (mm.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.module_id = mm.id AND cm.course_id = $2))
       WHERE v.id = $1 AND v.is_published = true AND v.archived_at IS NULL LIMIT 1`,
     [videoId, courseId]
   );
@@ -630,7 +632,7 @@ export async function adminOverview() {
               COALESCE(SUM(ws.duration_seconds), 0)::int AS seconds,
               COUNT(DISTINCT ws.student_email)::int AS students
          FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') d
-         LEFT JOIN watch_sessions ws ON ws.start_time::date = d::date
+         LEFT JOIN watch_sessions ws ON ws.start_time >= d AND ws.start_time < d + INTERVAL '1 day'
         GROUP BY d ORDER BY d`
     ),
     pool().query(

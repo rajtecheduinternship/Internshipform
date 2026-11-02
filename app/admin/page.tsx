@@ -234,7 +234,7 @@ function AdminWorkspace() {
 
   const [dupFlags, setDupFlags] = useState<Record<string, number>>({});
   const [dupOnly, setDupOnly] = useState(false);
-  const fetchSubmissions = useCallback(async () => {
+  const fetchSubmissions = useCallback(async (options: { flags?: boolean } = {}) => {
     setLoading(true);
     try {
       const response = await fetch('/api/admin/submissions', {
@@ -243,7 +243,7 @@ function AdminWorkspace() {
       if (response.ok) {
         const data = await response.json();
         setSubmissions(data.submissions || []);
-        fetch('/api/admin/submissions/duplicate-flags', { cache: 'no-store' }).then((r) => r.ok ? r.json() : { flags: {} }).then((d) => setDupFlags(d.flags || {})).catch(() => {});
+        if (options.flags !== false) fetch('/api/admin/submissions/duplicate-flags', { cache: 'no-store' }).then((r) => r.ok ? r.json() : { flags: {} }).then((d) => setDupFlags(d.flags || {})).catch(() => {});
       } else {
         setAuthError('Failed to fetch submissions');
       }
@@ -494,7 +494,8 @@ function AdminWorkspace() {
   useEffect(() => {
     if (isAuthenticated) {
       const interval = setInterval(() => {
-        fetchSubmissions();
+        if (document.hidden) return; // nobody is looking at this tab
+        fetchSubmissions({ flags: false }); // duplicate flags are the costly part; they refresh on load / manual refresh
         fetchAnalytics();
         fetchEnquiries();
       }, 60000); // Refresh every minute

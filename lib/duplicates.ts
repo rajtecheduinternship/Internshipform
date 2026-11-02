@@ -105,8 +105,24 @@ export async function findDuplicates(input: DuplicateInput): Promise<DuplicateMa
   return rows.map((r) => compare(input, r)).filter((m): m is DuplicateMatch => !!m).sort((a, b) => rank(b) - rank(a));
 }
 
-/** Number of possible duplicates for every pending application, from one query. */
+// The comparison below is O(pending x same-name rows) and blocks the event loop, so share one
+// result between admin tabs/refreshes. A flag can lag a new submission by up to this long.
+const FLAGS_TTL_MS = 60_000;
+const flagsState = globalThis as unknown as { __rtsDupFlags?: { at: number; value?: Record<string, number>; inflight?: Promise<Record<string, number>> } };
+
+/** Cached wrapper: concurrent callers share one computation, and results are reused for FLAGS_TTL_MS. */
 export async function pendingDuplicateCounts(): Promise<Record<string, number>> {
+  const state = (flagsState.__rtsDupFlags ??= { at: 0 });
+  if (state.value && Date.now() - state.at < FLAGS_TTL_MS) return state.value;
+  if (state.inflight) return state.inflight;
+  state.inflight = computePendingDuplicateCounts()
+    .then((value) => { state.value = value; state.at = Date.now(); return value; })
+    .finally(() => { state.inflight = undefined; });
+  return state.inflight;
+}
+
+/** Number of possible duplicates for every pending application, from one query. */
+async function computePendingDuplicateCounts(): Promise<Record<string, number>> {
   const { rows } = await getPgPool().query<Row & { approval_status: string }>(`SELECT ${COLUMNS} FROM internship_applications`);
   const byKey = new Map<string, Row[]>();
   const add = (k: string, r: Row) => { if (k) (byKey.get(k) ?? byKey.set(k, []).get(k)!).push(r); };
