@@ -7,16 +7,16 @@ export interface LiveClass {
   meet_url: string; starts_at: string; ends_at: string; is_published: boolean; is_cancelled: boolean;
   course_title: string; module_title: string | null;
 }
-export function validateClass(raw: Record<string, unknown>) {
+export function validateClass(raw: Record<string, unknown>, allCourses = false) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new LearningError('Invalid class data.');
-  if (!isUuid(raw.course_id) || (raw.module_id && !isUuid(raw.module_id))) throw new LearningError('Choose a valid course and module.');
+  if (allCourses ? raw.module_id : (!isUuid(raw.course_id) || (raw.module_id && !isUuid(raw.module_id)))) throw new LearningError('Choose a valid course and module.');
   const meet = String(raw.meet_url || '').trim();
   if (!/^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}$/.test(meet)) throw new LearningError('Enter a Google Meet link such as https://meet.google.com/abc-defg-hij.');
   const start = new Date(String(raw.starts_at || ''));
   const end = new Date(String(raw.ends_at || ''));
   if (!Number.isFinite(+start) || !Number.isFinite(+end) || +end <= +start) throw new LearningError('End time must be after start time.');
   if ((raw.is_published !== undefined && typeof raw.is_published !== 'boolean') || (raw.is_cancelled !== undefined && typeof raw.is_cancelled !== 'boolean')) throw new LearningError('Invalid publication or cancellation state.');
-  return { course_id: raw.course_id, module_id: raw.module_id || null, title: text(raw.title, 200, 'Title'), description: typeof raw.description === 'string' ? raw.description.trim().slice(0, 3000) : '', meet_url: meet, starts_at: start.toISOString(), ends_at: end.toISOString(), is_published: raw.is_published === true, is_cancelled: raw.is_cancelled === true };
+  return { course_id: allCourses ? '' : raw.course_id, module_id: raw.module_id || null, title: text(raw.title, 200, 'Title'), description: typeof raw.description === 'string' ? raw.description.trim().slice(0, 3000) : '', meet_url: meet, starts_at: start.toISOString(), ends_at: end.toISOString(), is_published: raw.is_published === true, is_cancelled: raw.is_cancelled === true };
 }
 export async function saveClass(raw: Record<string, unknown>, id?: string) {
   if (id && !isUuid(id)) throw new LearningError('Invalid class.', 404);
@@ -36,7 +36,19 @@ export async function saveClass(raw: Record<string, unknown>, id?: string) {
       ? await db.query(`UPDATE live_classes SET course_id=$1,module_id=$2,title=$3,description=$4,meet_url=$5,starts_at=$6,ends_at=$7,is_published=$8,is_cancelled=$9 WHERE id=$10 RETURNING *`, [...values, id])
       : await db.query(`INSERT INTO live_classes(course_id,module_id,title,description,meet_url,starts_at,ends_at,is_published,is_cancelled) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`, values);
     await db.query('COMMIT'); return result.rows[0];
-  } catch (e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
+  } catch (e) { await db.query('ROLLBACK').catch(() => {}); throw e; } finally { db.release(); }
+}
+/** Schedules the same class for every course (course-wide only, no module). Returns the created rows. */
+export async function saveClassForAllCourses(raw: Record<string, unknown>) {
+  const d = validateClass({ ...raw, module_id: null }, true); const db = await getPgPool().connect();
+  try {
+    await db.query('BEGIN');
+    const courses = (await db.query('SELECT id FROM courses ORDER BY created_at')).rows as { id: string }[];
+    if (!courses.length) throw new LearningError('There are no courses to schedule a class for.');
+    const rows = [];
+    for (const c of courses) rows.push((await db.query(`INSERT INTO live_classes(course_id,module_id,title,description,meet_url,starts_at,ends_at,is_published,is_cancelled) VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [c.id, d.title, d.description, d.meet_url, d.starts_at, d.ends_at, d.is_published, d.is_cancelled])).rows[0]);
+    await db.query('COMMIT'); return rows;
+  } catch (e) { await db.query('ROLLBACK').catch(() => {}); throw e; } finally { db.release(); }
 }
 export async function listClasses(courseId?: string | null) {
   if (courseId !== undefined && !isUuid(courseId)) return [];
