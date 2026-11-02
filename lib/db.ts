@@ -15,9 +15,13 @@ export function getPgPool(): Pool {
     }
     pgPool = new Pool({
       connectionString,
-      max: Number(process.env.PG_POOL_MAX) || 20,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000,
+      // Serverless: every instance has its own pool, so keep it small to avoid exhausting the DB connection limit.
+      max: Number(process.env.PG_POOL_MAX) || 4,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 8_000,
+      statement_timeout: 20_000,
+      query_timeout: 25_000,
+      allowExitOnIdle: true,
     });
   }
   return pgPool;
