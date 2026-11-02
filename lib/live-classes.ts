@@ -11,7 +11,7 @@ export function validateClass(raw: Record<string, unknown>, allCourses = false) 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new LearningError('Invalid class data.');
   if (allCourses ? raw.module_id : (!isUuid(raw.course_id) || (raw.module_id && !isUuid(raw.module_id)))) throw new LearningError('Choose a valid course and module.');
   const meet = String(raw.meet_url || '').trim();
-  if (!/^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}$/.test(meet)) throw new LearningError('Enter a Google Meet link such as https://meet.google.com/abc-defg-hij.');
+  if (!/^https:\/\/meet\.google\.com\/(?:meet\/)?[a-z]{3}-[a-z]{4}-[a-z]{3}(?:\?[^\s#]*)?$/.test(meet)) throw new LearningError('Enter a Google Meet link such as https://meet.google.com/abc-defg-hij.');
   const start = new Date(String(raw.starts_at || ''));
   const end = new Date(String(raw.ends_at || ''));
   if (!Number.isFinite(+start) || !Number.isFinite(+end) || +end <= +start) throw new LearningError('End time must be after start time.');
