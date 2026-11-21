@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useCopy } from '@/components/help/i18n';
 import { classDay, classTime } from '@/lib/class-calendar';
 import type { LiveClass } from '@/lib/live-classes';
+import ClassGroupCard, { groupClasses } from './ClassGroup';
 
 export default function ClassCalendar({ classes, now, admin = false, onEdit, onAttendance }: { classes: LiveClass[]; now: number; admin?: boolean; onEdit?: (c: LiveClass) => void; onAttendance?: (c: LiveClass) => void }) {
   const t = useCopy();
@@ -21,18 +22,18 @@ export default function ClassCalendar({ classes, now, admin = false, onEdit, onA
       {Array.from({ length: offset }, (_, i) => <span key={`blank-${i}`} />)}
       {Array.from({ length: days }, (_, i) => {
         const date = `${month}-${String(i + 1).padStart(2, '0')}`;
-        const count = classes.filter((c) => classDay(c.starts_at) === date && !c.is_cancelled).length;
+        const dayClasses = classes.filter((c) => classDay(c.starts_at) === date && !c.is_cancelled); const count = admin ? groupClasses(dayClasses).length : dayClasses.length;
         return <button key={date} className={`ui-btn flex-col min-w-0 px-1 ${day === date ? 'ui-btn-primary' : ''}`} aria-pressed={day === date} aria-label={`${date}: ${count} classes`} onClick={() => setDay(date)}>{i + 1}<small>{count ? `${count} ●` : '·'}</small></button>;
       })}
     </div>
     <h3 className="font-semibold">{day} · IST</h3>
     {!selected.length && <p>{t('No classes scheduled for this day.', 'इस दिन कोई कक्षा तय नहीं है।')}</p>}
-    {selected.map((c) => <article key={c.id} className="ui-card ui-card-pad space-y-2">
+    {(admin ? groupClasses(selected) : selected.map((c) => [c])).map((g) => g.length > 1 ? <ClassGroupCard key={g[0].id} items={g} now={now} onEdit={onEdit} onAttendance={onAttendance} /> : g.map((c) => <article key={c.id} className="ui-card ui-card-pad space-y-2">
       <h3 className="ui-h2">{c.title}</h3>{admin && <p>{!c.is_published ? t('Draft · not visible to students', 'ड्राफ्ट · छात्रों को नहीं दिखता') : t('Published', 'प्रकाशित')}</p>}<p className="ui-muted">{c.course_title}{c.module_title ? ` · ${c.module_title}` : ''}</p>
       <p>{classTime(c.starts_at)} – {classTime(c.ends_at)} IST</p><p className="whitespace-pre-wrap">{c.description}</p>
       {onAttendance && <button className="ui-btn ui-btn-primary" onClick={() => onAttendance(c)}>{t('Attendance', 'उपस्थिति')}</button>}
       {onEdit && <button className="ui-btn" onClick={() => onEdit(c)}>{t('Edit / publish', 'बदलें / प्रकाशित करें')}</button>}
       {c.is_cancelled ? <p role="status">{t('Cancelled', 'रद्द की गई')}</p> : admin && !c.is_published ? null : +new Date(c.ends_at) <= now ? <p>{t('Class ended', 'कक्षा समाप्त हो गई')}</p> : admin ? <a className="ui-btn ui-btn-primary" href={c.meet_url} target="_blank" rel="noopener noreferrer">{t('Open Google Meet', 'Google Meet खोलें')} ↗</a> : <JoinClass item={c} now={now} />}
-    </article>)}
+    </article>))}
   </section>;
 }
