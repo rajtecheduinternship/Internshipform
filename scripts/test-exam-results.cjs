@@ -7,6 +7,7 @@ const { setup, load } = require('./lms-test-harness.cjs');
   try {
     const { pool, lms, root } = h;
     for (const file of ['013_examinations.sql', '014_exam_result_publication.sql', '014_exam_result_publication.sql']) await pool.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
+    for (const f of ['017_practice_exams.sql', '018_shared_question_banks.sql']) await pool.query(fs.readFileSync(path.join(root, 'migrations', f), 'utf8'));
     const errors = load('lib/learning-errors.ts');
     const originalLog = console.error; const logged = [];
     try {
@@ -29,8 +30,9 @@ const { setup, load } = require('./lms-test-harness.cjs');
     await pool.query('INSERT INTO course_modules(course_id,module_id) VALUES($1,$2)', [course,mod]);
     const ids = [];
     for (let i = 0; i < 3; i++) ids.push((await pool.query("INSERT INTO profiles(full_name,email,phone,role,course_id) VALUES($1,$2,$3,'student',$4) RETURNING id", ['Student ' + i, `result${i}@example.test`, '000000000' + i,course])).rows[0].id);
-    const bank = await exams.saveBank(course, mod, [0,1,2].map((i) => ({ prompt: 'Question ' + i, options: ['Right', 'Wrong'], answer_index: 0 })));
-    const raw = { course_id: course, module_id: mod, title: 'Exam', duration_minutes: 20, pass_percent: 34, requires_module_completion: false, question_ids: bank.map((q) => q.id) };
+    const bankId = (await exams.saveBankMeta({ title: 'B' })).id;
+    const bank = await exams.saveBank(bankId, [0,1,2].map((i) => ({ prompt: 'Question ' + i, options: ['Right', 'Wrong'], answer_index: 0 })));
+    const raw = { course_ids: [course], module_id: mod, title: 'Exam', duration_minutes: 20, pass_percent: 34, requires_module_completion: false, question_ids: bank.map((q) => q.id) };
     const exam = await exams.saveExam(raw); await exams.publishExam(exam.id, true);
     const args = { examId: exam.id, courseId: course, studentId: ids[0], action: 'start' };
     assert.equal((await exams.studentExams(course,ids[0]))[0].attempt_status,'not_started');
@@ -53,7 +55,7 @@ const { setup, load } = require('./lms-test-harness.cjs');
     assert.equal(review.grade.score_percent,33.33); assert.equal(review.grade.passed,false); assert.equal(review.grade.pass_percent,34);
     assert.equal(review.grade.questions[0].selected_answer,q1.options[q1.answer_index]);
     assert.equal(review.grade.questions[2].selected_index,null); assert.equal(review.grade.questions[2].marks_awarded,0);
-    await exams.saveBank(course,mod,[{ prompt: 'Changed later', options: ['New A','New B'], answer_index:1 }],q1.id);
+    await exams.saveBank(bankId,[{ prompt: 'Changed later', options: ['New A','New B'], answer_index:1 }],q1.id);
     assert.deepEqual((await exams.adminAnswerReview(exam.id,started.id)).grade,review.grade, 'immutable per-attempt snapshot');
     const wrongExam = await exams.saveExam({ ...raw,title:'Other exam' });
     await assert.rejects(exams.adminAnswerReview(wrongExam.id,started.id), /not found/);

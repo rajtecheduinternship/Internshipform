@@ -26,7 +26,7 @@ const ok = (r, label) => { assert.ok(r.status >= 200 && r.status < 300, `${label
 const step = (m) => console.log('  ✓', m);
 
 (async () => {
-  let practiceId = null; const bankIds = [];
+  let practiceId = null, bankIdForCleanup = null; const bankIds = [];
   try {
     // --- logins
     ok(await admin('/api/admin/verify', { method: 'POST', body: { password: ADMIN_PASSWORD } }), 'admin login');
@@ -47,12 +47,13 @@ const step = (m) => console.log('  ✓', m);
 
     // --- admin builds a practice set from fresh bank questions
     const qs = [0, 1, 2, 3].map((n) => ({ prompt: `ZZ-API-PRACTICE question ${n + 1}`, options: ['Alpha', 'Beta', 'Gamma'], answer_index: n % 3 }));
-    const created = ok(await admin('/api/admin/question-bank', { method: 'POST', body: { course_id: courseId, module_id: moduleId, questions: qs } }), 'bank').questions;
-    created.forEach((q) => bankIds.push(q.id));
-    assert.equal((await admin('/api/admin/practice', { method: 'POST', body: { course_id: courseId, module_id: moduleId, title: 'x', pass_percent: 50, question_ids: [] } })).status, 400);
-    assert.equal((await admin('/api/admin/practice', { method: 'POST', body: { course_id: courseId, module_id: moduleId, title: '', pass_percent: 50, question_ids: bankIds } })).status, 400);
-    assert.equal((await admin('/api/admin/practice', { method: 'POST', body: { course_id: courseId, module_id: moduleId, title: 'x', pass_percent: 500, question_ids: bankIds } })).status, 400);
-    practiceId = ok(await admin('/api/admin/practice', { method: 'POST', body: { course_id: courseId, module_id: moduleId, title: 'ZZ-API-PRACTICE', pass_percent: 50, question_ids: bankIds } }), 'create').practice.id;
+    const bankId = ok(await admin('/api/admin/question-banks', { method: 'POST', body: { title: 'ZZ-API-BANK' } }), 'bank create').bank.id;
+    const created = ok(await admin('/api/admin/question-bank', { method: 'POST', body: { bank_id: bankId, questions: qs } }), 'bank').questions;
+    created.forEach((q) => bankIds.push(q.id)); bankIdForCleanup = bankId;
+    assert.equal((await admin('/api/admin/practice', { method: 'POST', body: { course_ids: [courseId], module_id: moduleId, title: 'x', pass_percent: 50, question_ids: [] } })).status, 400);
+    assert.equal((await admin('/api/admin/practice', { method: 'POST', body: { course_ids: [courseId], module_id: moduleId, title: '', pass_percent: 50, question_ids: bankIds } })).status, 400);
+    assert.equal((await admin('/api/admin/practice', { method: 'POST', body: { course_ids: [courseId], module_id: moduleId, title: 'x', pass_percent: 500, question_ids: bankIds } })).status, 400);
+    practiceId = ok(await admin('/api/admin/practice', { method: 'POST', body: { course_ids: [courseId], module_id: moduleId, title: 'ZZ-API-PRACTICE', pass_percent: 50, question_ids: bankIds } }), 'create').practice.id;
     step('admin created a draft practice exam (bad input rejected with 400)');
 
     // --- drafts are invisible to students
@@ -121,7 +122,7 @@ const step = (m) => console.log('  ✓', m);
     step('unpublish hides it; republish brings the history back');
 
     // --- admin edits title while live
-    ok(await admin(`/api/admin/practice/${practiceId}`, { method: 'PATCH', body: { course_id: courseId, module_id: moduleId, title: 'ZZ-API-PRACTICE (edited)', pass_percent: 60, question_ids: bankIds.slice(0, 3) } }), 'edit');
+    ok(await admin(`/api/admin/practice/${practiceId}`, { method: 'PATCH', body: { course_ids: [courseId], module_id: moduleId, title: 'ZZ-API-PRACTICE (edited)', pass_percent: 60, question_ids: bankIds.slice(0, 3) } }), 'edit');
     const edited = ok(await student('/api/portal/practice'), 'list').practice.find((p) => p.id === practiceId);
     assert.equal(edited.title, 'ZZ-API-PRACTICE (edited)'); assert.equal(edited.question_count, 3);
     assert.equal(ok(await student(`/api/portal/practice/${practiceId}/attempt`, { method: 'POST' }), 'start').attempt.questions.length, 3);
@@ -139,6 +140,6 @@ const step = (m) => console.log('  ✓', m);
   } finally {
     if (practiceId) await admin(`/api/admin/practice/${practiceId}`, { method: 'DELETE' }).catch(() => {});
     // leave no test questions behind
-    if (bankIds.length) console.log(`note: ${bankIds.length} "ZZ-API-PRACTICE" bank questions remain in the question bank (no delete endpoint); remove via DB if unwanted.`);
+    if (bankIds.length) await admin(`/api/admin/question-banks/${bankIdForCleanup}`, { method: 'DELETE' }).catch(() => {});
   }
 })().catch((e) => { console.error('FAILED:', e.message); process.exit(1); });

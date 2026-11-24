@@ -11,7 +11,7 @@ import { gradeAttempt, type Questions } from '@/lib/exams';
  * deletes (or unpublishes) it. Nothing here touches the real `exams` / `exam_attempts` records.
  */
 export interface PracticeSummary {
-  id: string; title: string; course_id: string; module_id: string; module_title: string; pass_percent: number;
+  id: string; title: string; course_id?: string; course_ids?: string[]; module_id: string; module_title: string; pass_percent: number;
   question_ids: string[]; question_count: number; is_published: boolean; published_at: string | null; created_at: string;
   attempts?: number; students?: number;
   my_attempts?: number; my_last_percent?: number | null; my_best_percent?: number | null; my_in_progress?: boolean;
@@ -36,48 +36,51 @@ function mix(questions: Questions): Questions {
     return { ...q, options: order.map((i) => q.options[i]), answer_index: order.indexOf(q.answer_index) };
   });
 }
-const SUMMARY = `p.id, p.title, p.course_id, p.module_id, m.title AS module_title, p.pass_percent, p.question_ids,
+const SUMMARY = `p.id, p.title, ARRAY(SELECT course_id FROM practice_courses WHERE practice_id=p.id) AS course_ids, p.module_id, m.title AS module_title, p.pass_percent, p.question_ids,
   cardinality(p.question_ids) AS question_count, p.is_published, p.published_at, p.created_at`;
 
 /* ---------------- admin ---------------- */
 function validate(raw: unknown) {
   if (!raw || typeof raw !== 'object') throw new LearningError('Invalid practice exam.');
   const d = raw as Record<string, unknown>;
-  if (!isUuid(d.course_id) || !isUuid(d.module_id)) throw new LearningError('Choose a valid course and module.');
+  if (!isUuid(d.module_id)) throw new LearningError('Choose a valid course and module.');
+  if (!Array.isArray(d.course_ids) || !d.course_ids.length || d.course_ids.length > 50 || !d.course_ids.every(isUuid) || new Set(d.course_ids).size !== d.course_ids.length) throw new LearningError('Choose 1–50 distinct courses.');
   if (!Number.isInteger(d.pass_percent) || Number(d.pass_percent) < 0 || Number(d.pass_percent) > 100) throw new LearningError('Pass percentage must be 0–100.');
   if (!Array.isArray(d.question_ids) || !d.question_ids.length || d.question_ids.length > 200 || !d.question_ids.every(isUuid) || new Set(d.question_ids).size !== d.question_ids.length) throw new LearningError('Select 1–200 distinct bank questions.');
-  return { course_id: d.course_id as string, module_id: d.module_id as string, title: text(d.title, 200, 'Title'), pass_percent: d.pass_percent as number, question_ids: d.question_ids as string[] };
+  return { course_ids: d.course_ids as string[], module_id: d.module_id as string, title: text(d.title, 200, 'Title'), pass_percent: d.pass_percent as number, question_ids: d.question_ids as string[] };
 }
 export async function adminPractice(courseId?: unknown) {
   if (courseId !== undefined && courseId !== null && courseId !== '' && !isUuid(courseId)) throw new LearningError('Choose a course.');
   return (await getPgPool().query(`SELECT ${SUMMARY},
     (SELECT COUNT(*) FROM practice_attempts a WHERE a.practice_id=p.id AND a.submitted_at IS NOT NULL)::int AS attempts,
     (SELECT COUNT(DISTINCT a.student_id) FROM practice_attempts a WHERE a.practice_id=p.id AND a.submitted_at IS NOT NULL)::int AS students
-    FROM practice_exams p JOIN modules m ON m.id=p.module_id WHERE ($1::uuid IS NULL OR p.course_id=$1) ORDER BY p.created_at DESC`, [courseId || null])).rows as PracticeSummary[];
+    FROM practice_exams p JOIN modules m ON m.id=p.module_id WHERE ($1::uuid IS NULL OR EXISTS (SELECT 1 FROM practice_courses pc WHERE pc.practice_id=p.id AND pc.course_id=$1)) ORDER BY p.created_at DESC`, [courseId || null])).rows as PracticeSummary[];
 }
 export async function savePractice(raw: unknown, id?: string) {
   const d = validate(raw);
   if (id && !isUuid(id)) throw new LearningError('Practice exam not found.', 404);
   return inTransaction(async (db) => {
-    const scope = await db.query(`SELECT 1 FROM courses c WHERE c.id=$1 AND EXISTS (SELECT 1 FROM modules m WHERE m.id=$2 AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=m.id)))`, [d.course_id, d.module_id]);
-    if (!scope.rowCount) throw new LearningError('Module must belong to the selected course.');
-    const bank = await db.query('SELECT 1 FROM question_bank WHERE id=ANY($1::uuid[]) AND course_id=$2 AND (module_id IS NULL OR module_id=$3)', [d.question_ids, d.course_id, d.module_id]);
-    if (bank.rowCount !== d.question_ids.length) throw new LearningError('All questions must belong to this course/module.');
+    const scope = await db.query(`SELECT COUNT(*)::int AS n FROM courses c WHERE c.id=ANY($1::uuid[]) AND EXISTS (SELECT 1 FROM modules m WHERE m.id=$2 AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=m.id)))`, [d.course_ids, d.module_id]);
+    if (scope.rows[0].n !== d.course_ids.length) throw new LearningError('The module must belong to every selected course.');
+    const bank = await db.query('SELECT 1 FROM question_bank WHERE id=ANY($1::uuid[])', [d.question_ids]);
+    if (bank.rowCount !== d.question_ids.length) throw new LearningError('Some selected questions no longer exist.');
     const r = id
-      ? await db.query('UPDATE practice_exams SET course_id=$1,module_id=$2,title=$3,pass_percent=$4,question_ids=$5 WHERE id=$6 RETURNING id', [d.course_id, d.module_id, d.title, d.pass_percent, d.question_ids, id])
-      : await db.query('INSERT INTO practice_exams(course_id,module_id,title,pass_percent,question_ids) VALUES($1,$2,$3,$4,$5) RETURNING id', [d.course_id, d.module_id, d.title, d.pass_percent, d.question_ids]);
+      ? await db.query('UPDATE practice_exams SET module_id=$1,title=$2,pass_percent=$3,question_ids=$4 WHERE id=$5 RETURNING id', [d.module_id, d.title, d.pass_percent, d.question_ids, id])
+      : await db.query('INSERT INTO practice_exams(module_id,title,pass_percent,question_ids) VALUES($1,$2,$3,$4) RETURNING id', [d.module_id, d.title, d.pass_percent, d.question_ids]);
     if (!r.rows[0]) throw new LearningError('Practice exam not found.', 404);
+    await db.query('DELETE FROM practice_courses WHERE practice_id=$1', [r.rows[0].id]);
+    await db.query('INSERT INTO practice_courses(practice_id,course_id) SELECT $1, UNNEST($2::uuid[])', [r.rows[0].id, d.course_ids]);
     return (await db.query(`SELECT ${SUMMARY} FROM practice_exams p JOIN modules m ON m.id=p.module_id WHERE p.id=$1`, [r.rows[0].id])).rows[0] as PracticeSummary;
   });
 }
 export async function setPracticePublished(id: unknown, published: unknown) {
   if (!isUuid(id) || typeof published !== 'boolean') throw new LearningError('Invalid request.');
   const r = await getPgPool().query(`UPDATE practice_exams SET is_published=$2, published_at=CASE WHEN $2 THEN COALESCE(published_at,clock_timestamp()) ELSE published_at END
-    WHERE id=$1 AND ($2 = false OR EXISTS (SELECT 1 FROM courses c JOIN modules m ON m.id=practice_exams.module_id WHERE c.id=practice_exams.course_id AND c.is_published AND m.is_published))
+    WHERE id=$1 AND ($2 = false OR EXISTS (SELECT 1 FROM practice_courses pc JOIN courses c ON c.id=pc.course_id JOIN modules m ON m.id=practice_exams.module_id WHERE pc.practice_id=practice_exams.id AND c.is_published AND m.is_published))
     RETURNING id`, [id, published]);
   if (!r.rowCount) {
     if (!(await getPgPool().query('SELECT 1 FROM practice_exams WHERE id=$1', [id])).rowCount) throw new LearningError('Practice exam not found.', 404);
-    throw new LearningError('Publish the course and module first.');
+    throw new LearningError('Publish the module and at least one of the practice set’s courses first.');
   }
   return { ok: true };
 }
@@ -89,8 +92,8 @@ export async function deletePractice(id: unknown) {
 }
 
 /* ---------------- student ---------------- */
-const visible = `p.course_id=$1 AND p.is_published AND c.is_published AND m.is_published
-  AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=p.course_id AND cm.module_id=p.module_id))`;
+const visible = `p.is_published AND c.is_published AND m.is_published
+  AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=p.module_id))`;
 export async function studentPractice(courseId: string | null | undefined, studentId: string) {
   if (!isUuid(courseId)) return [];
   return (await getPgPool().query(`SELECT ${SUMMARY},
@@ -98,7 +101,7 @@ export async function studentPractice(courseId: string | null | undefined, stude
     (SELECT a.score_percent::float FROM practice_attempts a WHERE a.practice_id=p.id AND a.student_id=$2 AND a.submitted_at IS NOT NULL ORDER BY a.submitted_at DESC LIMIT 1) AS my_last_percent,
     (SELECT MAX(a.score_percent)::float FROM practice_attempts a WHERE a.practice_id=p.id AND a.student_id=$2 AND a.submitted_at IS NOT NULL) AS my_best_percent,
     EXISTS (SELECT 1 FROM practice_attempts a WHERE a.practice_id=p.id AND a.student_id=$2 AND a.submitted_at IS NULL) AS my_in_progress
-    FROM practice_exams p JOIN courses c ON c.id=p.course_id JOIN modules m ON m.id=p.module_id
+    FROM practice_exams p JOIN practice_courses pc ON pc.practice_id=p.id AND pc.course_id=$1 JOIN courses c ON c.id=pc.course_id JOIN modules m ON m.id=p.module_id
     WHERE ${visible} ORDER BY m.title, p.created_at DESC`, [courseId, studentId])).rows.map((r) => { const { question_ids, ...rest } = r; void question_ids; return rest as PracticeSummary; });
 }
 function present(a: { id: string; practice_id: string; started_at: string; submitted_at: string | null; questions: Questions; answers: Record<string, number> }, passPercent: number): PracticeAttempt {
@@ -127,7 +130,7 @@ function checked(raw: unknown, questions: Questions) {
 export async function practiceAttempt(args: { practiceId: string; courseId: string | null | undefined; studentId: string; action: 'read' | 'start' | 'save' | 'submit'; answers?: unknown }) {
   if (!isUuid(args.practiceId) || !isUuid(args.courseId)) throw new LearningError('Practice exam not available.', 404);
   return inTransaction(async (db) => {
-    const p = (await db.query(`SELECT p.* FROM practice_exams p JOIN courses c ON c.id=p.course_id JOIN modules m ON m.id=p.module_id WHERE ${visible} AND p.id=$2 FOR SHARE OF p`,
+    const p = (await db.query(`SELECT p.* FROM practice_exams p JOIN practice_courses pc ON pc.practice_id=p.id AND pc.course_id=$1 JOIN courses c ON c.id=pc.course_id JOIN modules m ON m.id=p.module_id WHERE ${visible} AND p.id=$2 FOR SHARE OF p`,
       [args.courseId, args.practiceId])).rows[0];
     if (!p) throw new LearningError('Practice exam not available.', 404);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`practice:${args.practiceId}:${args.studentId}`]);
@@ -139,7 +142,7 @@ export async function practiceAttempt(args: { practiceId: string; courseId: stri
     if (args.action === 'start') {
       if (!a) {
         // Always the current bank text; a question an admin removed from the bank simply drops out.
-        const qs = (await db.query('SELECT id,prompt,options,answer_index FROM question_bank WHERE id=ANY($1::uuid[]) AND course_id=$2', [p.question_ids, p.course_id])).rows as Questions;
+        const qs = (await db.query('SELECT id,prompt,options,answer_index FROM question_bank WHERE id=ANY($1::uuid[])', [p.question_ids])).rows as Questions;
         if (!qs.length) throw new LearningError('This practice exam has no questions available.', 409);
         a = (await db.query('INSERT INTO practice_attempts(practice_id,student_id,questions) VALUES($1,$2,$3) RETURNING *', [p.id, args.studentId, JSON.stringify(mix(qs))])).rows[0];
       }
@@ -158,10 +161,10 @@ export async function practiceAttempt(args: { practiceId: string; courseId: stri
 /** Every finished attempt of this student on one practice exam, newest first. */
 export async function practiceHistory(practiceId: string, courseId: string | null | undefined, studentId: string) {
   if (!isUuid(practiceId) || !isUuid(courseId)) throw new LearningError('Practice exam not available.', 404);
-  const open = await getPgPool().query(`SELECT 1 FROM practice_exams p JOIN courses c ON c.id=p.course_id JOIN modules m ON m.id=p.module_id WHERE ${visible} AND p.id=$2`, [courseId, practiceId]);
+  const open = await getPgPool().query(`SELECT 1 FROM practice_exams p JOIN practice_courses pc ON pc.practice_id=p.id AND pc.course_id=$1 JOIN courses c ON c.id=pc.course_id JOIN modules m ON m.id=p.module_id WHERE ${visible} AND p.id=$2`, [courseId, practiceId]);
   if (!open.rowCount) throw new LearningError('Practice exam not available.', 404);
   const r = await getPgPool().query(`SELECT a.id, a.submitted_at, a.correct_count, jsonb_array_length(a.questions) AS total, a.score_percent::float, a.passed
-    FROM practice_attempts a JOIN practice_exams p ON p.id=a.practice_id JOIN courses c ON c.id=p.course_id JOIN modules m ON m.id=p.module_id
+    FROM practice_attempts a JOIN practice_exams p ON p.id=a.practice_id JOIN practice_courses pc ON pc.practice_id=p.id AND pc.course_id=$1 JOIN courses c ON c.id=pc.course_id JOIN modules m ON m.id=p.module_id
     WHERE ${visible} AND p.id=$3 AND a.student_id=$2 AND a.submitted_at IS NOT NULL ORDER BY a.submitted_at DESC LIMIT 100`, [courseId, studentId, practiceId]);
   return r.rows as { id: string; submitted_at: string; correct_count: number; total: number; score_percent: number; passed: boolean }[];
 }
