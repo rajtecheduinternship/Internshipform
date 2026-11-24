@@ -2,12 +2,12 @@ import { randomInt } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { getPgPool } from '@/lib/db';
 import { isUuid } from '@/lib/lms';
-import { LearningError } from '@/lib/learning-errors';
+import { LearningError, text } from '@/lib/learning-errors';
 import { BankQuestion, validateExam, validateQuestion } from '@/lib/exam-validation';
 
 export type Questions = Pick<BankQuestion, 'id' | 'prompt' | 'options' | 'answer_index'>[];
 export interface ExamSummary {
-  id: string; title: string; course_id: string; module_id: string; module_title: string;
+  id: string; title: string; course_id?: string; course_ids?: string[]; module_id: string; module_title: string;
   duration_minutes: number; pass_percent: number; requires_module_completion: boolean;
   opens_at: string | null; closes_at: string | null; is_published: boolean; published_at: string | null;
   question_ids: string[]; eligible?: boolean;
@@ -25,48 +25,80 @@ async function inTransaction<T>(fn: (db: PoolClient) => Promise<T>) {
   try { await db.query('BEGIN'); const result = await fn(db); await db.query('COMMIT'); return result; }
   catch (e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
 }
-async function validateScope(db: PoolClient, courseId: string, moduleId: string | null) {
-  const r = await db.query(`SELECT 1 FROM courses c WHERE c.id=$1 AND ($2::uuid IS NULL OR EXISTS (
-    SELECT 1 FROM modules m WHERE m.id=$2 AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=m.id))))`, [courseId, moduleId]);
-  if (!r.rowCount) throw new LearningError('Module must belong to the selected course.');
+/** Every selected course must offer the module (a mandatory module is offered to all). */
+async function validateScope(db: PoolClient, courseIds: string[], moduleId: string) {
+  const r = await db.query(`SELECT COUNT(*)::int AS n FROM courses c WHERE c.id=ANY($1::uuid[]) AND EXISTS (
+    SELECT 1 FROM modules m WHERE m.id=$2 AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=m.id)))`, [courseIds, moduleId]);
+  if (r.rows[0].n !== courseIds.length) throw new LearningError('The module must belong to every selected course.');
 }
-export async function listBank(courseId: string) {
-  if (!isUuid(courseId)) throw new LearningError('Choose a course.');
-  return (await getPgPool().query('SELECT * FROM question_bank WHERE course_id=$1 ORDER BY created_at DESC', [courseId])).rows as BankQuestion[];
+export interface QuestionBankSummary { id: string; title: string; description: string; created_at: string; question_count: number }
+export async function listBanks() {
+  return (await getPgPool().query(`SELECT b.id,b.title,b.description,b.created_at,(SELECT COUNT(*) FROM question_bank q WHERE q.bank_id=b.id)::int AS question_count
+    FROM question_banks b ORDER BY b.created_at DESC`)).rows as QuestionBankSummary[];
 }
-export async function saveBank(courseId: unknown, moduleId: unknown, raw: unknown[], id?: string) {
-  if (!isUuid(courseId) || (moduleId && !isUuid(moduleId)) || (id && !isUuid(id))) throw new LearningError('Invalid course, module or question.');
+export async function saveBankMeta(raw: unknown, id?: string) {
+  const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const title = text(d.title, 200, 'Bank name');
+  const description = typeof d.description === 'string' ? d.description.trim().slice(0, 1000) : '';
+  if (id && !isUuid(id)) throw new LearningError('Question bank not found.', 404);
+  const r = id ? await getPgPool().query('UPDATE question_banks SET title=$2,description=$3 WHERE id=$1 RETURNING id,title,description,created_at', [id, title, description])
+    : await getPgPool().query('INSERT INTO question_banks(title,description) VALUES($1,$2) RETURNING id,title,description,created_at', [title, description]);
+  if (!r.rows[0]) throw new LearningError('Question bank not found.', 404);
+  return { ...r.rows[0], question_count: id ? Number((await getPgPool().query('SELECT COUNT(*) n FROM question_bank WHERE bank_id=$1', [id])).rows[0].n) : 0 } as QuestionBankSummary;
+}
+/** Deleting a bank removes its questions; published exams keep their frozen copy, drafts lose them. */
+export async function deleteBankSet(id: unknown) {
+  if (!isUuid(id)) throw new LearningError('Question bank not found.', 404);
+  const r = await getPgPool().query('DELETE FROM question_banks WHERE id=$1', [id]);
+  if (!r.rowCount) throw new LearningError('Question bank not found.', 404);
+}
+/** Questions of one bank, or of several banks (bank_ids) for the exam picker. */
+export async function listBank(bankIds: string | string[]) {
+  const ids = (Array.isArray(bankIds) ? bankIds : [bankIds]).filter(Boolean);
+  if (!ids.length || !ids.every(isUuid)) throw new LearningError('Choose a question bank.');
+  return (await getPgPool().query('SELECT id,bank_id,prompt,options,answer_index,created_at FROM question_bank WHERE bank_id=ANY($1::uuid[]) ORDER BY created_at DESC, id', [ids])).rows as BankQuestion[];
+}
+export async function saveBank(bankId: unknown, raw: unknown[], id?: string) {
+  if (!isUuid(bankId) || (id && !isUuid(id))) throw new LearningError('Invalid question bank or question.');
   if (!Array.isArray(raw) || !raw.length || raw.length > 200 || (id && raw.length !== 1)) throw new LearningError('Provide 1–200 questions.');
   const questions = raw.map(validateQuestion);
   return inTransaction(async (db) => {
-    await validateScope(db, courseId, (moduleId as string) || null);
+    if (!(await db.query('SELECT 1 FROM question_banks WHERE id=$1 FOR SHARE', [bankId])).rowCount) throw new LearningError('Question bank not found.', 404);
     const result: BankQuestion[] = [];
     for (const q of questions) {
-      const values = [courseId, moduleId || null, q.prompt, JSON.stringify(q.options), q.answer_index];
-      const r = id ? await db.query('UPDATE question_bank SET module_id=$2,prompt=$3,options=$4,answer_index=$5 WHERE course_id=$1 AND id=$6 RETURNING *', [...values, id])
-        : await db.query('INSERT INTO question_bank(course_id,module_id,prompt,options,answer_index) VALUES($1,$2,$3,$4,$5) RETURNING *', values);
+      const r = id ? await db.query('UPDATE question_bank SET prompt=$2,options=$3,answer_index=$4 WHERE bank_id=$1 AND id=$5 RETURNING id,bank_id,prompt,options,answer_index,created_at', [bankId, q.prompt, JSON.stringify(q.options), q.answer_index, id])
+        : await db.query('INSERT INTO question_bank(bank_id,prompt,options,answer_index) VALUES($1,$2,$3,$4) RETURNING id,bank_id,prompt,options,answer_index,created_at', [bankId, q.prompt, JSON.stringify(q.options), q.answer_index]);
       if (!r.rows[0]) throw new LearningError('Question not found.', 404);
       result.push(r.rows[0]);
     }
     return result;
   });
 }
+/** Remove one question from a bank (draft exams / practice sets simply lose it). */
+export async function deleteBankQuestion(bankId: unknown, id: unknown) {
+  if (!isUuid(bankId) || !isUuid(id)) throw new LearningError('Question not found.', 404);
+  const r = await getPgPool().query('DELETE FROM question_bank WHERE bank_id=$1 AND id=$2', [bankId, id]);
+  if (!r.rowCount) throw new LearningError('Question not found.', 404);
+}
 export async function saveExam(raw: Record<string, unknown>, id?: string) {
   const d = validateExam(raw);
   if (id && !isUuid(id)) throw new LearningError('Exam not found.', 404);
   return inTransaction(async (db) => {
-    await validateScope(db, d.course_id, d.module_id);
+    await validateScope(db, d.course_ids, d.module_id);
     if (id) {
       const prev = (await db.query('SELECT published_at FROM exams WHERE id=$1 FOR UPDATE', [id])).rows[0];
       if (!prev) throw new LearningError('Exam not found.', 404);
       if (prev.published_at) throw new LearningError('A previously published exam is immutable. Create a new exam for changes.', 409);
     }
-    const bank = await db.query('SELECT id FROM question_bank WHERE id=ANY($1::uuid[]) AND course_id=$2 AND (module_id IS NULL OR module_id=$3)', [d.question_ids, d.course_id, d.module_id]);
-    if (bank.rowCount !== d.question_ids.length) throw new LearningError('All questions must belong to this course/module.');
-    const values = Object.values(d);
-    const r = id ? await db.query('UPDATE exams SET course_id=$1,module_id=$2,title=$3,duration_minutes=$4,pass_percent=$5,requires_module_completion=$6,opens_at=$7,closes_at=$8,question_ids=$9 WHERE id=$10 RETURNING *', [...values, id])
-      : await db.query('INSERT INTO exams(course_id,module_id,title,duration_minutes,pass_percent,requires_module_completion,opens_at,closes_at,question_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *', values);
-    return r.rows[0];
+    const bank = await db.query('SELECT id FROM question_bank WHERE id=ANY($1::uuid[])', [d.question_ids]);
+    if (bank.rowCount !== d.question_ids.length) throw new LearningError('Some selected questions no longer exist.');
+    const values = [d.module_id, d.title, d.duration_minutes, d.pass_percent, d.requires_module_completion, d.opens_at, d.closes_at, d.question_ids];
+    const r = id ? await db.query('UPDATE exams SET module_id=$1,title=$2,duration_minutes=$3,pass_percent=$4,requires_module_completion=$5,opens_at=$6,closes_at=$7,question_ids=$8 WHERE id=$9 RETURNING id', [...values, id])
+      : await db.query('INSERT INTO exams(module_id,title,duration_minutes,pass_percent,requires_module_completion,opens_at,closes_at,question_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id', values);
+    const examId = r.rows[0].id as string;
+    await db.query('DELETE FROM exam_courses WHERE exam_id=$1', [examId]);
+    await db.query('INSERT INTO exam_courses(exam_id,course_id) SELECT $1, UNNEST($2::uuid[])', [examId, d.course_ids]);
+    return (await db.query('SELECT e.*, ARRAY(SELECT course_id FROM exam_courses WHERE exam_id=e.id) AS course_ids FROM exams e WHERE e.id=$1', [examId])).rows[0];
   });
 }
 export async function publishExam(id: string, published: boolean) {
@@ -76,10 +108,11 @@ export async function publishExam(id: string, published: boolean) {
     if (!exam) throw new LearningError('Exam not found.', 404);
     let questions = exam.questions;
     if (published && !exam.published_at) {
-      const scope = await db.query('SELECT 1 FROM courses c JOIN modules m ON m.id=$2 WHERE c.id=$1 AND c.is_published AND m.is_published', [exam.course_id, exam.module_id]);
-      if (!scope.rowCount) throw new LearningError('Publish the course and module first.');
-      await validateScope(db, exam.course_id, exam.module_id);
-      const r = await db.query('SELECT id,prompt,options,answer_index FROM question_bank WHERE id=ANY($1::uuid[]) AND course_id=$2 AND (module_id IS NULL OR module_id=$3)', [exam.question_ids, exam.course_id, exam.module_id]);
+      const scope = await db.query('SELECT 1 FROM exam_courses ec JOIN courses c ON c.id=ec.course_id JOIN modules m ON m.id=$2 WHERE ec.exam_id=$1 AND c.is_published AND m.is_published LIMIT 1', [exam.id, exam.module_id]);
+      if (!scope.rowCount) throw new LearningError('Publish the module and at least one of the exam’s courses first.');
+      const courseIds = (await db.query('SELECT course_id FROM exam_courses WHERE exam_id=$1', [exam.id])).rows.map((x) => x.course_id as string);
+      await validateScope(db, courseIds, exam.module_id);
+      const r = await db.query('SELECT id,prompt,options,answer_index FROM question_bank WHERE id=ANY($1::uuid[])', [exam.question_ids]);
       if (r.rowCount !== exam.question_ids.length) throw new LearningError('Some selected questions are no longer available.');
       questions = r.rows;
     }
@@ -87,25 +120,25 @@ export async function publishExam(id: string, published: boolean) {
   });
 }
 // Same publication/enrollment predicate for listing, start, resume, save and submit.
-const visible = `e.course_id=$1 AND e.is_published AND c.is_published AND m.is_published
-  AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=e.course_id AND cm.module_id=e.module_id))`;
+const visible = `e.is_published AND c.is_published AND m.is_published
+  AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=c.id AND cm.module_id=e.module_id))`;
 export async function studentExams(courseId: string | null | undefined, studentId: string) {
   if (!isUuid(courseId)) return [];
   return inTransaction(async (db) => {
     await finalizeExpired(db, undefined, studentId);
-    return (await db.query(`SELECT e.id,e.title,e.course_id,e.module_id,m.title AS module_title,e.duration_minutes,e.pass_percent,
+    return (await db.query(`SELECT e.id,e.title,c.id AS course_id,e.module_id,m.title AS module_title,e.duration_minutes,e.pass_percent,
       e.requires_module_completion,e.opens_at,e.closes_at,e.is_published, true AS eligible,
       CASE WHEN a.id IS NULL THEN 'not_started' WHEN a.submitted_at IS NULL THEN 'in_progress' ELSE 'submitted' END AS attempt_status,
       a.result_published_at,
       CASE WHEN a.result_published_at IS NOT NULL THEN a.score_percent::float END AS score_percent,
       CASE WHEN a.result_published_at IS NOT NULL THEN a.passed END AS passed
-      FROM exams e JOIN courses c ON c.id=e.course_id JOIN modules m ON m.id=e.module_id
+      FROM exams e JOIN exam_courses ec ON ec.exam_id=e.id AND ec.course_id=$1 JOIN courses c ON c.id=ec.course_id JOIN modules m ON m.id=e.module_id
       LEFT JOIN exam_attempts a ON a.exam_id=e.id AND a.student_id=$2
-      WHERE (${visible}) OR (e.course_id=$1 AND c.is_published AND a.result_published_at IS NOT NULL) ORDER BY e.created_at DESC`, [courseId, studentId])).rows as ExamSummary[];
+      WHERE (${visible}) OR (c.is_published AND a.result_published_at IS NOT NULL) ORDER BY e.created_at DESC`, [courseId, studentId])).rows as ExamSummary[];
   });
 }
 export async function adminExams() {
-  return (await getPgPool().query(`SELECT e.id,e.title,e.course_id,e.module_id,m.title AS module_title,e.duration_minutes,e.pass_percent,
+  return (await getPgPool().query(`SELECT e.id,e.title,ARRAY(SELECT course_id FROM exam_courses WHERE exam_id=e.id) AS course_ids,e.module_id,m.title AS module_title,e.duration_minutes,e.pass_percent,
     e.requires_module_completion,e.opens_at,e.closes_at,e.is_published,e.published_at,e.question_ids
     FROM exams e JOIN modules m ON m.id=e.module_id ORDER BY e.created_at DESC`)).rows as ExamSummary[];
 }
@@ -132,8 +165,8 @@ export async function attemptExam(args: { examId: string; courseId: string | nul
   if (!isUuid(args.examId) || !isUuid(args.courseId)) throw new LearningError('Exam not available.', 404);
   return inTransaction(async (db) => {
     const exam = (await db.query(`SELECT e.*, true AS eligible
-      FROM exams e JOIN courses c ON c.id=e.course_id JOIN modules m ON m.id=e.module_id
-      WHERE ((${visible}) ${args.action === 'read' ? `OR (e.course_id=$1 AND c.is_published AND EXISTS (SELECT 1 FROM exam_attempts a WHERE a.exam_id=e.id AND a.student_id=$2 AND a.result_published_at IS NOT NULL))` : ''}) AND e.id=$3 AND $2::uuid IS NOT NULL FOR SHARE OF e`, [args.courseId, args.studentId, args.examId])).rows[0];
+      FROM exams e JOIN exam_courses ec ON ec.exam_id=e.id AND ec.course_id=$1 JOIN courses c ON c.id=ec.course_id JOIN modules m ON m.id=e.module_id
+      WHERE ((${visible}) ${args.action === 'read' ? `OR (c.is_published AND EXISTS (SELECT 1 FROM exam_attempts a WHERE a.exam_id=e.id AND a.student_id=$2 AND a.result_published_at IS NOT NULL))` : ''}) AND e.id=$3 AND $2::uuid IS NOT NULL FOR SHARE OF e`, [args.courseId, args.studentId, args.examId])).rows[0];
     if (!exam) throw new LearningError('Exam not available.', 404);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`exam:${args.examId}:${args.studentId}`]);
     let attempt = (await db.query('SELECT * FROM exam_attempts WHERE exam_id=$1 AND student_id=$2 FOR UPDATE', [args.examId, args.studentId])).rows[0];
@@ -269,8 +302,8 @@ export async function resultScopeSummary(courseId: unknown, moduleId?: unknown) 
     return (await db.query(`SELECT e.id AS exam_id, e.title, m.title AS module_title,
       COUNT(a.id) FILTER (WHERE a.submitted_at IS NOT NULL)::int AS submitted,
       COUNT(a.id) FILTER (WHERE a.result_published_at IS NOT NULL)::int AS published
-      FROM exams e JOIN modules m ON m.id=e.module_id LEFT JOIN exam_attempts a ON a.exam_id=e.id
-      WHERE e.course_id=$1 AND ($2::uuid IS NULL OR e.module_id=$2) GROUP BY e.id, m.title ORDER BY m.title, e.created_at`, [courseId, moduleId || null])).rows as { exam_id: string; title: string; module_title: string; submitted: number; published: number }[];
+      FROM exams e JOIN modules m ON m.id=e.module_id LEFT JOIN exam_attempts a ON a.exam_id=e.id AND EXISTS (SELECT 1 FROM profiles p WHERE p.id=a.student_id AND p.course_id=$1)
+      WHERE EXISTS (SELECT 1 FROM exam_courses ec WHERE ec.exam_id=e.id AND ec.course_id=$1) AND ($2::uuid IS NULL OR e.module_id=$2) GROUP BY e.id, m.title ORDER BY m.title, e.created_at`, [courseId, moduleId || null])).rows as { exam_id: string; title: string; module_title: string; submitted: number; published: number }[];
   });
 }
 /** Release (or hide) every submitted result for all exams in a course or one module. */
@@ -279,7 +312,7 @@ export async function publishScopeResults(courseId: unknown, moduleId: unknown, 
   return inTransaction(async (db) => {
     await finalizeExpired(db);
     const rows = await db.query(`UPDATE exam_attempts a SET result_published_at=CASE WHEN $3 THEN COALESCE(a.result_published_at,clock_timestamp()) ELSE NULL END
-      FROM exams e WHERE e.id=a.exam_id AND e.course_id=$1 AND ($2::uuid IS NULL OR e.module_id=$2) AND a.submitted_at IS NOT NULL RETURNING a.id`, [courseId, moduleId || null, published]);
+      FROM exams e, profiles p WHERE e.id=a.exam_id AND p.id=a.student_id AND p.course_id=$1 AND EXISTS (SELECT 1 FROM exam_courses ec WHERE ec.exam_id=e.id AND ec.course_id=$1) AND ($2::uuid IS NULL OR e.module_id=$2) AND a.submitted_at IS NOT NULL RETURNING a.id`, [courseId, moduleId || null, published]);
     return { updated: rows.rowCount || 0 };
   });
 }

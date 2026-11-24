@@ -6,8 +6,8 @@ const { setup, load } = require('./lms-test-harness.cjs');
   const h = await setup();
   try {
     const { pool, lms, root } = h;
-    for (const f of ['013_examinations.sql', '014_exam_result_publication.sql', '017_practice_exams.sql']) await pool.query(fs.readFileSync(path.join(root, 'migrations', f), 'utf8'));
-    await pool.query(fs.readFileSync(path.join(root, 'migrations/017_practice_exams.sql'), 'utf8')); // idempotent
+    for (const f of ['013_examinations.sql', '014_exam_result_publication.sql', '017_practice_exams.sql', '018_shared_question_banks.sql']) await pool.query(fs.readFileSync(path.join(root, 'migrations', f), 'utf8'));
+    for (const f of ['017_practice_exams.sql', '018_shared_question_banks.sql']) await pool.query(fs.readFileSync(path.join(root, 'migrations', f), 'utf8')); // idempotent
     const errors = load('lib/learning-errors.ts');
     const mocks = { ...h.mocks, '@/lib/lms': lms, '@/lib/learning-errors': errors };
     mocks['@/lib/exam-validation'] = load('lib/exam-validation.ts', mocks);
@@ -21,13 +21,14 @@ const { setup, load } = require('./lms-test-harness.cjs');
     const outsider = (await pool.query("INSERT INTO profiles(full_name,email,phone,role,course_id) VALUES('O','p3@example.test','0000000012','student',$1) RETURNING id", [B])).rows[0].id;
     const M = (await pool.query("INSERT INTO modules(title,is_published) VALUES('Module',true) RETURNING id")).rows[0].id;
     await pool.query('INSERT INTO course_modules(course_id,module_id) VALUES($1,$2)', [A, M]);
-    const bank = await exams.saveBank(A, M, [1, 2, 3, 4].map((n) => ({ prompt: `Q${n}`, options: ['a', 'b', 'c'], answer_index: n % 3 })));
-    const data = { course_id: A, module_id: M, title: 'Practice 1', pass_percent: 50, question_ids: bank.map((q) => q.id) };
+    const bankId = (await exams.saveBankMeta({ title: 'Bank' })).id;
+    const bank = await exams.saveBank(bankId, [1, 2, 3, 4].map((n) => ({ prompt: `Q${n}`, options: ['a', 'b', 'c'], answer_index: n % 3 })));
+    const data = { course_ids: [A], module_id: M, title: 'Practice 1', pass_percent: 50, question_ids: bank.map((q) => q.id) };
 
     // admin validation
     await assert.rejects(practice.savePractice({ ...data, question_ids: [] }), /1–200/);
     await assert.rejects(practice.savePractice({ ...data, pass_percent: 101 }), /Pass/);
-    await assert.rejects(practice.savePractice({ ...data, course_id: B }), /belong/);
+    await assert.rejects(practice.savePractice({ ...data, course_ids: [B] }), /belong/);
     await assert.rejects(practice.savePractice({ ...data, title: '  ' }), /Title/);
     const p = await practice.savePractice(data);
     assert.equal(p.is_published, false); assert.equal(p.question_count, 4);
@@ -97,7 +98,7 @@ const { setup, load } = require('./lms-test-harness.cjs');
     // an unpublished module blocks publishing
     await pool.query('UPDATE modules SET is_published=false WHERE id=$1', [M]);
     await practice.setPracticePublished(p.id, false);
-    await assert.rejects(practice.setPracticePublished(p.id, true), /Publish the course and module/);
+    await assert.rejects(practice.setPracticePublished(p.id, true), /Publish the module/);
     await pool.query('UPDATE modules SET is_published=true WHERE id=$1', [M]);
     await assert.rejects(practice.setPracticePublished('00000000-0000-4000-8000-000000000000', true), /not found/);
 

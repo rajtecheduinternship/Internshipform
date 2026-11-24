@@ -1,6 +1,6 @@
 import { LearningError, text } from '@/lib/learning-errors';
 import { isUuid } from '@/lib/lms';
-export interface BankQuestion { id: string; course_id: string; module_id: string | null; prompt: string; options: string[]; answer_index: number }
+export interface BankQuestion { id: string; bank_id: string; prompt: string; options: string[]; answer_index: number }
 export type QuestionInput = Pick<BankQuestion, 'prompt' | 'options' | 'answer_index'>;
 export function validateQuestion(raw: unknown): QuestionInput {
   if (!raw || typeof raw !== 'object') throw new LearningError('Invalid question.');
@@ -13,7 +13,8 @@ export function validateQuestion(raw: unknown): QuestionInput {
   return { prompt, options, answer_index: Number(d.answer_index) };
 }
 export function validateExam(raw: Record<string, unknown>) {
-  if (!raw || !isUuid(raw.course_id) || !isUuid(raw.module_id)) throw new LearningError('Choose a valid course and module.');
+  if (!raw || !isUuid(raw.module_id)) throw new LearningError('Choose a valid course and module.');
+  if (!Array.isArray(raw.course_ids) || !raw.course_ids.length || raw.course_ids.length > 50 || !raw.course_ids.every(isUuid) || new Set(raw.course_ids).size !== raw.course_ids.length) throw new LearningError('Choose 1–50 distinct courses.');
   if (!Number.isInteger(raw.duration_minutes) || Number(raw.duration_minutes) < 1 || Number(raw.duration_minutes) > 300) throw new LearningError('Duration must be 1–300 minutes.');
   if (!Number.isInteger(raw.pass_percent) || Number(raw.pass_percent) < 0 || Number(raw.pass_percent) > 100) throw new LearningError('Pass percentage must be 0–100.');
   if (typeof raw.requires_module_completion !== 'boolean') throw new LearningError('Choose the module completion requirement.');
@@ -26,5 +27,5 @@ export function validateExam(raw: Record<string, unknown>) {
   }
   const opens = date(raw.opens_at); const closes = date(raw.closes_at);
   if (opens && closes && closes <= opens) throw new LearningError('Closing time must follow opening time.');
-  return { course_id: raw.course_id, module_id: raw.module_id, title: text(raw.title, 200, 'Title'), duration_minutes: raw.duration_minutes as number, pass_percent: raw.pass_percent as number, requires_module_completion: raw.requires_module_completion, opens_at: opens, closes_at: closes, question_ids: raw.question_ids as string[] };
+  return { course_ids: raw.course_ids as string[], module_id: raw.module_id, title: text(raw.title, 200, 'Title'), duration_minutes: raw.duration_minutes as number, pass_percent: raw.pass_percent as number, requires_module_completion: raw.requires_module_completion, opens_at: opens, closes_at: closes, question_ids: raw.question_ids as string[] };
 }
