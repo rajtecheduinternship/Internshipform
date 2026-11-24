@@ -13,6 +13,7 @@ import JSZip from 'jszip';
 import { UnsavedChangesProvider, useAdminNavigation, useAdminDraft } from '@/components/admin/UnsavedChanges';
 import ExamsManager from '@/components/admin/ExamsManager';
 import ClassesManager from '@/components/admin/ClassesManager';
+import AttendanceSheets from '@/components/admin/AttendanceSheets';
 import CoursesManager from '@/components/admin/CoursesManager';
 import StudentsManager from '@/components/admin/StudentsManager';
 import OverviewTab from '@/components/admin/Overview';
@@ -84,12 +85,12 @@ function AdminWorkspace() {
   const [bulkMsg, setBulkMsg] = useState('');
 
   // Tab & Extended Admin state
-  type AdminTab = 'records' | 'exams' | 'classes' | 'analytics' | 'applications' | 'enquiries' | 'news' | 'courses' | 'students' | 'questions';
+  type AdminTab = 'records' | 'exams' | 'classes' | 'analytics' | 'applications' | 'enquiries' | 'news' | 'courses' | 'students' | 'questions' | 'attendance';
   const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
   useEffect(() => {
     const read = () => {
       const key = new URL(window.location.href).searchParams.get('section');
-      const valid = ['analytics', 'students', 'courses', 'exams', 'classes', 'questions', 'applications', 'enquiries', 'news', 'records'];
+      const valid = ['analytics', 'students', 'courses', 'exams', 'classes', 'questions', 'applications', 'enquiries', 'news', 'records', 'attendance'];
       if (key && valid.includes(key)) setActiveTab(key as AdminTab);
     };
     read(); window.addEventListener('popstate', read); return () => window.removeEventListener('popstate', read);
@@ -538,6 +539,7 @@ function AdminWorkspace() {
     { key: 'questions', label: 'Student doubts', hindi: 'छात्रों की शंकाएँ', icon: 'message', count: openQuestions || undefined, description: copy('Answer your students’ questions.', 'छात्रों के सवालों के जवाब दें।'), hint: copy('Reply in simple Hindi or English. Students see your answer below their lesson.', 'सरल हिन्दी या अंग्रेज़ी में जवाब दें। छात्रों को जवाब उनके पाठ के नीचे दिखेगा।') },
     { key: 'applications', label: 'Applications', hindi: 'आवेदन', icon: 'file', count: pendingCount, description: copy('Review internship applications.', 'इंटर्नशिप के आवेदन देखें।'), hint: copy('Review applications and approve or reject admission. Students cannot learn until you approve.', 'आवेदन जाँचें और प्रवेश मंज़ूर या नामंज़ूर करें। आपकी मंज़ूरी के बिना छात्र पढ़ाई शुरू नहीं कर सकते।') },
     { key: 'enquiries', label: 'Enquiries', hindi: 'पूछताछ', icon: 'help', count: enquiries.length, description: copy('Respond to student enquiries.', 'छात्रों की पूछताछ का जवाब दें।'), hint: copy('Find students who need more information and help them get started.', 'जानकारी चाहने वाले छात्रों से संपर्क करें और शुरू करने में मदद करें।') },
+    { key: 'attendance', label: 'Attendance sheets', hindi: 'उपस्थिति शीट', icon: 'file', description: copy('Student attendance sheets.', 'छात्रों की उपस्थिति शीट।'), hint: copy('Generate each student’s attendance sheet from class records, review it, then publish to students.', 'कक्षा के रिकॉर्ड से हर छात्र की उपस्थिति शीट बनाएँ, जाँचें, फिर छात्रों के लिए प्रकाशित करें।') },
     { key: 'records', label: 'Certificates & downloads', hindi: 'प्रमाणपत्र और डाउनलोड', icon: 'file', description: copy('Certificates and records.', 'प्रमाणपत्र और रिकॉर्ड।'), hint: copy('Create certificates and export application records from one place.', 'एक जगह से प्रमाणपत्र बनाएँ और आवेदन रिकॉर्ड डाउनलोड करें।') },
     { key: 'news', label: 'Announcements', hindi: 'सूचनाएँ', icon: 'bell', count: newsItems.length || undefined, description: copy('Share an announcement.', 'सभी तक ज़रूरी सूचना पहुँचाएँ।'), hint: copy('Add notices to the homepage Notice Board. You can publish several notices; long lists scroll automatically.', 'मुख्य पेज के सूचना बोर्ड के लिए सूचनाएँ जोड़ें। कई सूचनाएँ जोड़ सकते हैं; लंबी सूची अपने आप स्क्रॉल होगी।') },
   ];
@@ -592,7 +594,7 @@ function AdminWorkspace() {
             { en: 'Learning', hi: 'पढ़ाई', keys: ['courses', 'classes'] },
             { en: 'Assessments', hi: 'मूल्यांकन', keys: ['exams'] },
             { en: 'Communication', hi: 'संचार', keys: ['questions', 'news'] },
-            { en: 'Records', hi: 'रिकॉर्ड', keys: ['records'] },
+            { en: 'Records', hi: 'रिकॉर्ड', keys: ['attendance', 'records'] },
           ].map((group) => <section key={group.en}><h2 className="admin-nav-label">{copy(group.en, group.hi)}</h2><div className="admin-nav">{group.keys.map((key) => {
             const item = TABS.find((tab) => tab.key === key)!;
             return <button key={key} aria-current={activeTab === key ? 'page' : undefined} onClick={() => selectTab(item.key)}><Icon name={item.icon} size={19} /><span>{item.key === 'questions' ? copy('Student doubts', 'छात्रों की शंकाएँ') : copy(item.label, item.hindi)}</span>{!!item.count && <span className={`admin-nav-count ${item.key === 'questions' ? 'needs-answer' : ''}`}>{item.count}</span>}</button>;
@@ -618,6 +620,7 @@ function AdminWorkspace() {
 
       {activeTab === 'exams' && <ExamsManager />}
       {activeTab === 'classes' && <ClassesManager />}
+      {activeTab === 'attendance' && <AttendanceSheets />}
       {activeTab === 'courses' && <CoursesManager />}
       {activeTab === 'questions' && <QuestionsManager onChanged={refreshOpenQuestions} />}
       {activeTab === 'students' && <StudentsManager key={studentCourse} initialCourse={studentCourse} />}

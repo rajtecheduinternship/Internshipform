@@ -8,6 +8,7 @@ import LoadingState from '@/components/LoadingState';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import StudentNavbar from '@/components/layout/StudentNavbar';
+import StudentDocuments from '@/components/StudentDocuments';
 import PortalFooter from '@/components/layout/PortalFooter';
 import Walkthrough from '@/components/help/Walkthrough';
 import { useCopy } from '@/components/help/i18n';
@@ -64,6 +65,7 @@ export default function VideoLibraryPage() {
           <div className="heading-note"><span className="status-dot" />{t('Your space to grow', 'सीखने और आगे बढ़ने की जगह')}</div>
         </div>
 
+        {student && <StudentDocuments />}
         {student && <StudentClasses />}
         {examination.error && <p role="alert">{t('Examinations could not load.', 'परीक्षाएँ नहीं खुलीं।')} <button className="ui-link" onClick={examination.reload}>{t('Retry', 'फिर कोशिश करें')}</button></p>}
         {loading ? <LoadingState label={t('Loading your course', 'आपका कोर्स लोड हो रहा है')} /> : error ? (

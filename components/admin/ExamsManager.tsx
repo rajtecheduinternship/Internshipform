@@ -3,15 +3,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { useCopy } from '@/components/help/i18n';
 import ExamResults from './ExamResults';
+import ScopeResults from './ScopeResults';
 import EditorDrawer from './EditorDrawer';
 import { useAdminDraft } from './UnsavedChanges';
 import { classInput, classInstant } from '@/lib/class-calendar';
 import type { BankQuestion, QuestionInput } from '@/lib/exam-validation';
 import type { ExamSummary } from '@/lib/exams';
+import type { PracticeSummary } from '@/lib/practice';
 type Course = { id: string; title: string };
 type Module = Course & { courses: Course[]; is_mandatory: boolean };
 const emptyQuestion = { prompt: '', options: '', answer_index: 0 };
-const emptyExam = { title: '', duration_minutes: 30, pass_percent: 50, requires_module_completion: true, opens_at: '', closes_at: '', question_ids: [] as string[] };
+const emptyPractice = { title: '', pass_percent: 50, question_ids: [] as string[] };
+const emptyExam = { title: '', duration_minutes: 30, pass_percent: 50, requires_module_completion: false, opens_at: '', closes_at: '', question_ids: [] as string[] };
 export default function ExamsManager() {
   const t = useCopy();
   const [courses, setCourses] = useState<Course[]>([]); const [modules, setModules] = useState<Module[]>([]);
@@ -21,13 +24,14 @@ export default function ExamsManager() {
   const [draft, setDraft] = useState(emptyExam); const [editId, setEditId] = useState<string | null>(null);
   const [preview, setPreview] = useState<QuestionInput[]>([]); const [previewScope, setPreviewScope] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
-  const [view, setView] = useState<'bank' | 'exams' | 'results'>('exams');
-  const [panel, setPanel] = useState<'question' | 'import' | 'exam' | null>(null);
+  const [view, setView] = useState<'bank' | 'exams' | 'practice' | 'results'>('exams');
+  const [practice, setPractice] = useState<PracticeSummary[]>([]); const [practiceDraft, setPracticeDraft] = useState(emptyPractice); const [practiceId, setPracticeId] = useState<string | null>(null);
+  const [panel, setPanel] = useState<'question' | 'import' | 'exam' | 'practice' | null>(null);
   const baseline = useRef(''); const resultHeading = useRef<HTMLHeadingElement>(null);
   const [resultExam, setResultExam] = useState<ExamSummary | null>(null);
   const load = useCallback(async () => {
-    const [a, b, c] = await Promise.all([api<{ courses: Course[] }>('/api/admin/courses'), api<{ modules: Module[] }>('/api/admin/modules'), api<{ exams: ExamSummary[] }>('/api/admin/exams')]);
-    setCourses(a.courses); setModules(b.modules); setExams(c.exams);
+    const [a, b, c, d] = await Promise.all([api<{ courses: Course[] }>('/api/admin/courses'), api<{ modules: Module[] }>('/api/admin/modules'), api<{ exams: ExamSummary[] }>('/api/admin/exams'), api<{ practice: PracticeSummary[] }>('/api/admin/practice')]);
+    setCourses(a.courses); setModules(b.modules); setExams(c.exams); setPractice(d.practice);
   }, []);
   const loadBank = useCallback(async () => {
     if (!courseId) { setBank([]); return; }
@@ -45,15 +49,15 @@ export default function ExamsManager() {
     try { await fn(); setMessage(t('Saved successfully.', 'सफलतापूर्वक सेव हो गया।')); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  const dirty = panel === 'question' ? JSON.stringify(question) !== baseline.current : panel === 'exam' ? JSON.stringify(draft) !== baseline.current : panel === 'import' && preview.length > 0;
+  const dirty = panel === 'question' ? JSON.stringify(question) !== baseline.current : panel === 'exam' ? JSON.stringify(draft) !== baseline.current : panel === 'practice' ? JSON.stringify(practiceDraft) !== baseline.current : panel === 'import' && preview.length > 0;
   const canLeave = useAdminDraft(!!panel && !!dirty, busy);
   function closePanel() { if (canLeave()) { setPanel(null); setPreview([]); } }
   function chooseView(next: typeof view) { if (!canLeave()) return; setPanel(null); setView(next); const url = new URL(window.location.href); url.searchParams.set('assessment', next); window.history.replaceState(null, '', url); }
-  useEffect(() => { const value = new URL(window.location.href).searchParams.get('assessment'); if (value === 'bank' || value === 'exams' || value === 'results') setView(value); }, []);
+  useEffect(() => { const value = new URL(window.location.href).searchParams.get('assessment'); if (value === 'bank' || value === 'exams' || value === 'practice' || value === 'results') setView(value); }, []);
   useEffect(() => { if (view === 'results' && resultExam) { resultHeading.current?.focus(); resultHeading.current?.scrollIntoView({ block: 'start' }); } }, [view, resultExam]);
   function changeCourse(id: string) {
     if (!canLeave()) return; setPanel(null);
-    setCourse(id); setModule(''); setDraft(emptyExam); setEditId(null); setQuestion(emptyQuestion); setQuestionId(null); setPreview([]); setResultExam(null);
+    setCourse(id); setModule(''); setDraft(emptyExam); setEditId(null); setPracticeDraft(emptyPractice); setPracticeId(null); setQuestion(emptyQuestion); setQuestionId(null); setPreview([]); setResultExam(null);
   }
   async function importFile(file?: File) {
     if (!file) return;
@@ -79,13 +83,20 @@ export default function ExamsManager() {
     if (exam) { setCourse(exam.course_id); setModule(exam.module_id); }
     setDraft(value); setEditId(exam?.id || null); baseline.current = JSON.stringify(value); setPanel('exam'); setError('');
   }
+  function openPractice(item?: PracticeSummary) {
+    if (!canLeave()) return;
+    const value = item ? { title: item.title, pass_percent: item.pass_percent, question_ids: item.question_ids } : emptyPractice;
+    if (item) { setCourse(item.course_id); setModule(item.module_id); }
+    setPracticeDraft(value); setPracticeId(item?.id || null); baseline.current = JSON.stringify(value); setPanel('practice'); setError('');
+  }
   function openResults(exam: ExamSummary) { chooseView('results'); setResultExam(exam); }
   const shownExams = exams.filter((e) => (!courseId || e.course_id === courseId) && (!moduleId || e.module_id === moduleId));
+  const shownPractice = practice.filter((x) => (!courseId || x.course_id === courseId) && (!moduleId || x.module_id === moduleId));
   const shownBank = bank.filter((q) => !moduleId || !q.module_id || q.module_id === moduleId);
   return <div className="max-w-5xl mx-auto p-4 space-y-5">
     {error && !panel && <p role="alert" className="ui-card ui-card-pad">{error} <button className="ui-link" onClick={() => run(async () => { await load(); await loadBank(); })}>{t('Reload data', 'जानकारी फिर लोड करें')}</button></p>}{message && <p role="status">{message}</p>}
     <nav className="admin-view-tabs" aria-label={t('Assessment areas', 'मूल्यांकन के भाग')}>
-      {([['bank','Question Bank','प्रश्न बैंक'],['exams','Exams','परीक्षाएँ'],['results','Results','परिणाम']] as const).map(([key,en,hi]) => <button key={key} className={`ui-btn ${view === key ? 'ui-btn-primary' : ''}`} aria-current={view === key ? 'page' : undefined} onClick={() => chooseView(key)}>{t(en,hi)}</button>)}
+      {([['bank','Question Bank','प्रश्न बैंक'],['exams','Exams','परीक्षाएँ'],['practice','Practice','अभ्यास'],['results','Results','परिणाम']] as const).map(([key,en,hi]) => <button key={key} className={`ui-btn ${view === key ? 'ui-btn-primary' : ''}`} aria-current={view === key ? 'page' : undefined} onClick={() => chooseView(key)}>{t(en,hi)}</button>)}
     </nav>
     <section className="ui-card ui-card-pad admin-filter-grid" aria-label={t('Course context', 'कोर्स का संदर्भ')}>
       <label>{t('Course', 'कोर्स')}<select aria-label={t('Course', 'कोर्स')} disabled={busy} className="ui-field" value={courseId} onChange={(e) => changeCourse(e.target.value)}><option value="">{view === 'bank' ? t('Choose course', 'कोर्स चुनें') : t('All courses', 'सभी कोर्स')}</option>{courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
@@ -103,8 +114,18 @@ export default function ExamsManager() {
         <button className="ui-btn ui-btn-primary" disabled={busy} onClick={() => openResults(exam)}>{t('View results', 'परिणाम देखें')}</button>
       </div></article>)}
     </>}
-    {view === 'results' && <><h2 ref={resultHeading} tabIndex={-1} className="ui-h2" style={{ scrollMarginTop: 100 }}>{t('Examination results', 'परीक्षा परिणाम')}{resultExam ? ` · ${resultExam.title}` : ''}</h2><label>{t('Choose examination', 'परीक्षा चुनें')}<select className="ui-field" value={resultExam?.id || ''} onChange={(e) => setResultExam(exams.find((x) => x.id === e.target.value) || null)}><option value="">{t('Choose examination', 'परीक्षा चुनें')}</option>{shownExams.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>{resultExam && <ExamResults key={resultExam.id} examId={resultExam.id} />}</>}
-    {panel && <EditorDrawer title={panel === 'question' ? (questionId ? t('Edit bank question', 'बैंक प्रश्न बदलें') : t('Add question', 'प्रश्न जोड़ें')) : panel === 'import' ? t('Import Word questions', 'Word प्रश्न आयात करें') : editId ? t('Edit draft exam', 'ड्राफ्ट परीक्षा बदलें') : t('Create exam', 'परीक्षा बनाएँ')} onClose={closePanel} busy={busy}>
+    {view === 'practice' && <><div className="flex flex-wrap gap-3 items-center justify-between"><h2 className="ui-h2">{t('Practice exams', 'अभ्यास परीक्षाएँ')}</h2><button className="ui-btn ui-btn-primary" disabled={!courseId || !moduleId || busy} onClick={() => openPractice()}>{t('Create practice exam', 'अभ्यास परीक्षा बनाएँ')}</button></div>
+      <p>{t('Students can retake a practice exam as many times as they like and see their result straight away. It stays available until you delete it. Practice never affects real exam results.', 'छात्र अभ्यास परीक्षा जितनी बार चाहें दे सकते हैं और तुरंत परिणाम देखते हैं। जब तक आप हटाएँ नहीं, यह उपलब्ध रहती है। अभ्यास का असली परीक्षा परिणाम पर कोई असर नहीं पड़ता।')}</p>
+      {(!courseId || !moduleId) && <p>{t('Choose a course and module above to create a practice exam.', 'अभ्यास परीक्षा बनाने के लिए ऊपर कोर्स और मॉड्यूल चुनें।')}</p>}
+      {!shownPractice.length && <p>{t('No practice exams match this selection.', 'इस चयन में कोई अभ्यास परीक्षा नहीं है।')}</p>}
+      {shownPractice.map((x) => <article key={x.id} className="ui-card ui-card-pad space-y-3"><h3 className="ui-h2 break-words">{x.title}</h3><p>{x.module_title} · {x.question_count} {t('questions', 'प्रश्न')} · {t('Pass', 'उत्तीर्ण')}: {x.pass_percent}% · {x.is_published ? t('Published', 'प्रकाशित') : t('Draft', 'ड्राफ्ट')}</p><p className="ui-muted">{x.attempts || 0} {t('attempts by', 'प्रयास,')} {x.students || 0} {t('students', 'छात्रों के')}</p><div className="flex flex-wrap gap-2">
+        <button className="ui-btn" disabled={busy} onClick={() => openPractice(x)}>{t('Edit', 'बदलें')}</button>
+        <button className="ui-btn" disabled={busy} onClick={() => void run(async () => { await api(`/api/admin/practice/${x.id}`, 'PATCH', { is_published: !x.is_published }); await load(); })}>{x.is_published ? t('Unpublish', 'प्रकाशन हटाएँ') : t('Publish', 'प्रकाशित करें')}</button>
+        <button className="ui-btn" disabled={busy} onClick={() => { if (window.confirm(t('Delete this practice exam? Students lose access and all their practice attempts on it are removed. This cannot be undone.', 'यह अभ्यास परीक्षा हटाएँ? छात्रों की पहुँच बंद होगी और इस पर उनके सभी अभ्यास प्रयास मिट जाएँगे। इसे वापस नहीं किया जा सकता।'))) void run(async () => { await api(`/api/admin/practice/${x.id}`, 'DELETE'); await load(); }); }}>{t('Delete', 'हटाएँ')}</button>
+      </div></article>)}
+    </>}
+    {view === 'results' && <><h2 ref={resultHeading} tabIndex={-1} className="ui-h2" style={{ scrollMarginTop: 100 }}>{t('Examination results', 'परीक्षा परिणाम')}{resultExam ? ` · ${resultExam.title}` : ''}</h2><label>{t('Choose examination', 'परीक्षा चुनें')}<select className="ui-field" value={resultExam?.id || ''} onChange={(e) => setResultExam(exams.find((x) => x.id === e.target.value) || null)}><option value="">{t('Choose examination', 'परीक्षा चुनें')}</option>{shownExams.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>{courseId ? <ScopeResults key={`${courseId}:${moduleId}`} courseId={courseId} moduleId={moduleId} onOpenExam={(id) => setResultExam(exams.find((x) => x.id === id) || null)} /> : <p>{t('Choose a course (and optionally a module) above to publish results for all its exams at once.', 'किसी कोर्स (और चाहें तो मॉड्यूल) को चुनें, ताकि उसकी सभी परीक्षाओं के परिणाम एक साथ प्रकाशित हों।')}</p>}{resultExam && <ExamResults key={resultExam.id} examId={resultExam.id} />}</>}
+    {panel && <EditorDrawer title={panel === 'question' ? (questionId ? t('Edit bank question', 'बैंक प्रश्न बदलें') : t('Add question', 'प्रश्न जोड़ें')) : panel === 'import' ? t('Import Word questions', 'Word प्रश्न आयात करें') : panel === 'practice' ? (practiceId ? t('Edit practice exam', 'अभ्यास परीक्षा बदलें') : t('Create practice exam', 'अभ्यास परीक्षा बनाएँ')) : editId ? t('Edit draft exam', 'ड्राफ्ट परीक्षा बदलें') : t('Create exam', 'परीक्षा बनाएँ')} onClose={closePanel} busy={busy}>
       {error && <p role="alert">{error}</p>}
 {panel === 'question' && <>      <form className="ui-card ui-card-pad space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => {
         const q = { ...question, options: question.options.split('\n').map((v) => v.trim()).filter(Boolean) };
@@ -124,6 +145,16 @@ export default function ExamsManager() {
         {!!preview.length && <><h4>{preview.length} {t('questions to review', 'प्रश्न जाँचें')}</h4><ol className="space-y-3 max-h-96 overflow-auto">{preview.map((q, i) => <li key={i}><strong>{i + 1}. {q.prompt}</strong><ul>{q.options.map((v, n) => <li key={n}>{String.fromCharCode(65 + n)}) {v}{n === q.answer_index ? ' ✓' : ''}</li>)}</ul></li>)}</ol><button className="ui-btn ui-btn-primary" disabled={busy || previewScope !== `${courseId}:${moduleId}`} onClick={() => run(async () => { await api('/api/admin/question-bank', 'POST', { course_id: courseId, module_id: moduleId || null, questions: preview }); setPreview([]); setPanel(null); await loadBank(); })}>{t('Confirm and save reviewed questions', 'जाँचे हुए प्रश्नों की पुष्टि करके सेव करें')}</button></>}
       </section>
 </>}
+{panel === 'practice' && <>      <form className="ui-card ui-card-pad space-y-4" onSubmit={(e) => { e.preventDefault(); void run(async () => {
+        await api(`/api/admin/practice${practiceId ? `/${practiceId}` : ''}`, practiceId ? 'PATCH' : 'POST', { ...practiceDraft, course_id: courseId, module_id: moduleId });
+        setPracticeDraft(emptyPractice); setPracticeId(null); setPanel(null); await load();
+      }); }}>
+        <label className="block">{t('Practice exam title', 'अभ्यास परीक्षा का नाम')}<input required maxLength={200} className="ui-field" value={practiceDraft.title} onChange={(e) => setPracticeDraft({ ...practiceDraft, title: e.target.value })} /></label>
+        <label className="block">{t('Pass percentage', 'उत्तीर्ण प्रतिशत')}<input type="number" min={0} max={100} required className="ui-field" value={practiceDraft.pass_percent} onChange={(e) => setPracticeDraft({ ...practiceDraft, pass_percent: Number(e.target.value) })} /></label>
+        <fieldset className="space-y-2 max-h-96 overflow-auto"><legend>{t('Select bank questions (1–200)', 'बैंक प्रश्न चुनें (1–200)')} · {practiceDraft.question_ids.length}</legend><button type="button" className="ui-btn ui-btn-sm" onClick={() => setPracticeDraft({ ...practiceDraft, question_ids: practiceDraft.question_ids.length === availableQuestions.length ? [] : availableQuestions.map((q) => q.id) })}>{practiceDraft.question_ids.length === availableQuestions.length ? t('Clear all', 'सब हटाएँ') : t('Select all', 'सब चुनें')}</button>{availableQuestions.map((q) => <div key={q.id} className="border-t pt-2"><label className="flex gap-2"><input type="checkbox" checked={practiceDraft.question_ids.includes(q.id)} onChange={(e) => setPracticeDraft({ ...practiceDraft, question_ids: e.target.checked ? [...practiceDraft.question_ids, q.id] : practiceDraft.question_ids.filter((id) => id !== q.id) })} /><span className="break-words min-w-0">{q.prompt}</span></label></div>)}</fieldset>
+        <p>{t('Practice exams can be edited at any time. Students see the latest questions on their next attempt.', 'अभ्यास परीक्षा कभी भी बदली जा सकती है। छात्रों को अगले प्रयास में नए प्रश्न दिखेंगे।')}</p>
+        <button className="ui-btn ui-btn-primary" disabled={busy || !moduleId || !practiceDraft.question_ids.length}>{t('Save practice exam', 'अभ्यास परीक्षा सेव करें')}</button>{practiceId && <button type="button" className="ui-btn ml-2" onClick={closePanel}>{t('Cancel edit', 'बदलाव छोड़ें')}</button>}
+      </form></>}
 {panel === 'exam' && <>      <form className="ui-card ui-card-pad space-y-4" onSubmit={(e) => { e.preventDefault(); void run(async () => {
         await api(`/api/admin/exams${editId ? `/${editId}` : ''}`, editId ? 'PATCH' : 'POST', { ...draft, course_id: courseId, module_id: moduleId, opens_at: draft.opens_at ? classInstant(draft.opens_at) : null, closes_at: draft.closes_at ? classInstant(draft.closes_at) : null });
         setDraft(emptyExam); setEditId(null); setPanel(null); await load();
@@ -131,7 +162,6 @@ export default function ExamsManager() {
         <label className="block">{t('Exam title', 'परीक्षा का नाम')}<input required maxLength={200} className="ui-field" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
         <div className="grid sm:grid-cols-2 gap-4"><label>{t('Duration (minutes)', 'अवधि (मिनट)')}<input type="number" min={1} max={300} required className="ui-field" value={draft.duration_minutes} onChange={(e) => setDraft({ ...draft, duration_minutes: Number(e.target.value) })} /></label><label>{t('Pass percentage', 'उत्तीर्ण प्रतिशत')}<input type="number" min={0} max={100} required className="ui-field" value={draft.pass_percent} onChange={(e) => setDraft({ ...draft, pass_percent: Number(e.target.value) })} /></label></div>
         <div className="grid sm:grid-cols-2 gap-4">{(['opens_at', 'closes_at'] as const).map((key) => <label key={key}>{key === 'opens_at' ? t('Opens (IST, optional)', 'शुरू (IST, वैकल्पिक)') : t('Closes (IST, optional)', 'समाप्त (IST, वैकल्पिक)')}<input type="datetime-local" className="ui-field" value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></label>)}</div>
-        <label className="flex gap-2"><input type="checkbox" checked={draft.requires_module_completion} onChange={(e) => setDraft({ ...draft, requires_module_completion: e.target.checked })} />{t('Require published module lessons to be completed before starting', 'शुरू करने से पहले मॉड्यूल के प्रकाशित पाठ पूरे करना आवश्यक है')}</label>
         <fieldset className="space-y-2 max-h-96 overflow-auto"><legend>{t('Select bank questions (1–200)', 'बैंक प्रश्न चुनें (1–200)')} · {draft.question_ids.length}</legend>{availableQuestions.map((q) => <div key={q.id} className="border-t pt-2"><label className="flex gap-2"><input type="checkbox" checked={draft.question_ids.includes(q.id)} onChange={(e) => setDraft({ ...draft, question_ids: e.target.checked ? [...draft.question_ids, q.id] : draft.question_ids.filter((id) => id !== q.id) })} />{q.prompt}</label><small>{t('Answer', 'उत्तर')}: {q.options[q.answer_index]}</small></div>)}</fieldset>
         <p>{t('Publishing freezes questions, options, answers and rules. Make a new exam for a retake or any later change. Closing time may shorten the student’s timer.', 'प्रकाशित करने पर प्रश्न, विकल्प, उत्तर और नियम स्थायी हो जाते हैं। दोबारा परीक्षा या बाद के बदलाव के लिए नई परीक्षा बनाएँ। समाप्ति समय छात्र की समय-सीमा कम कर सकता है।')}</p>
         <button className="ui-btn ui-btn-primary" disabled={busy || !moduleId || !draft.question_ids.length}>{t('Save draft exam', 'ड्राफ्ट परीक्षा सेव करें')}</button>{editId && <button type="button" className="ui-btn ml-2" onClick={closePanel}>{t('Cancel edit', 'बदलाव छोड़ें')}</button>}

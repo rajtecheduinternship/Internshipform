@@ -89,15 +89,12 @@ export async function publishExam(id: string, published: boolean) {
 // Same publication/enrollment predicate for listing, start, resume, save and submit.
 const visible = `e.course_id=$1 AND e.is_published AND c.is_published AND m.is_published
   AND (m.is_mandatory OR EXISTS (SELECT 1 FROM course_modules cm WHERE cm.course_id=e.course_id AND cm.module_id=e.module_id))`;
-const moduleDone = `EXISTS (SELECT 1 FROM videos v WHERE v.module_id=e.module_id AND v.is_published AND v.archived_at IS NULL)
-  AND NOT EXISTS (SELECT 1 FROM videos v LEFT JOIN video_progress p ON p.video_id=v.id AND p.student_id=$2
-  WHERE v.module_id=e.module_id AND v.is_published AND v.archived_at IS NULL AND NOT COALESCE(p.is_completed,false))`;
 export async function studentExams(courseId: string | null | undefined, studentId: string) {
   if (!isUuid(courseId)) return [];
   return inTransaction(async (db) => {
     await finalizeExpired(db, undefined, studentId);
     return (await db.query(`SELECT e.id,e.title,e.course_id,e.module_id,m.title AS module_title,e.duration_minutes,e.pass_percent,
-      e.requires_module_completion,e.opens_at,e.closes_at,e.is_published, (NOT e.requires_module_completion OR (${moduleDone})) AS eligible,
+      e.requires_module_completion,e.opens_at,e.closes_at,e.is_published, true AS eligible,
       CASE WHEN a.id IS NULL THEN 'not_started' WHEN a.submitted_at IS NULL THEN 'in_progress' ELSE 'submitted' END AS attempt_status,
       a.result_published_at,
       CASE WHEN a.result_published_at IS NOT NULL THEN a.score_percent::float END AS score_percent,
@@ -134,9 +131,9 @@ function checkedAnswers(raw: unknown, questions: Questions): Record<string, numb
 export async function attemptExam(args: { examId: string; courseId: string | null | undefined; studentId: string; action: 'read' | 'start' | 'save' | 'submit'; answers?: unknown; focusEvent?: boolean }) {
   if (!isUuid(args.examId) || !isUuid(args.courseId)) throw new LearningError('Exam not available.', 404);
   return inTransaction(async (db) => {
-    const exam = (await db.query(`SELECT e.*, (NOT e.requires_module_completion OR (${moduleDone})) AS eligible
+    const exam = (await db.query(`SELECT e.*, true AS eligible
       FROM exams e JOIN courses c ON c.id=e.course_id JOIN modules m ON m.id=e.module_id
-      WHERE ((${visible}) ${args.action === 'read' ? `OR (e.course_id=$1 AND c.is_published AND EXISTS (SELECT 1 FROM exam_attempts a WHERE a.exam_id=e.id AND a.student_id=$2 AND a.result_published_at IS NOT NULL))` : ''}) AND e.id=$3 FOR SHARE OF e`, [args.courseId, args.studentId, args.examId])).rows[0];
+      WHERE ((${visible}) ${args.action === 'read' ? `OR (e.course_id=$1 AND c.is_published AND EXISTS (SELECT 1 FROM exam_attempts a WHERE a.exam_id=e.id AND a.student_id=$2 AND a.result_published_at IS NOT NULL))` : ''}) AND e.id=$3 AND $2::uuid IS NOT NULL FOR SHARE OF e`, [args.courseId, args.studentId, args.examId])).rows[0];
     if (!exam) throw new LearningError('Exam not available.', 404);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`exam:${args.examId}:${args.studentId}`]);
     let attempt = (await db.query('SELECT * FROM exam_attempts WHERE exam_id=$1 AND student_id=$2 FOR UPDATE', [args.examId, args.studentId])).rows[0];
@@ -144,7 +141,6 @@ export async function attemptExam(args: { examId: string; courseId: string | nul
     if (!attempt && args.action === 'start') {
       if (exam.opens_at && +now < +exam.opens_at) throw new LearningError('Exam has not opened yet.', 403);
       if (exam.closes_at && +now >= +exam.closes_at) throw new LearningError('Exam has closed.', 403);
-      if (!exam.eligible) throw new LearningError('Complete the published module lessons before starting this exam.', 403);
       const deadline = new Date(Math.min(+now + exam.duration_minutes * 60000, exam.closes_at ? +exam.closes_at : Infinity));
       attempt = (await db.query('INSERT INTO exam_attempts(exam_id,student_id,questions,started_at,deadline_at) VALUES($1,$2,$3,$4,$5) RETURNING *', [exam.id, args.studentId, JSON.stringify(attemptQuestions(exam.questions)), now, deadline])).rows[0];
     }
@@ -262,5 +258,28 @@ export async function adminStudentExams(studentId: string) {
       a.focus_events,jsonb_array_length(a.questions) AS total_questions
       FROM exam_attempts a JOIN profiles p ON p.id=a.student_id JOIN exams e ON e.id=a.exam_id
       JOIN modules m ON m.id=e.module_id WHERE a.student_id=$1 ORDER BY a.started_at DESC`, [studentId])).rows as AdminExamResult[];
+  });
+}
+
+/** Per-exam submission/publication counts for a course (optionally one module). */
+export async function resultScopeSummary(courseId: unknown, moduleId?: unknown) {
+  if (!isUuid(courseId) || (moduleId && !isUuid(moduleId))) throw new LearningError('Choose a course.');
+  return inTransaction(async (db) => {
+    await finalizeExpired(db);
+    return (await db.query(`SELECT e.id AS exam_id, e.title, m.title AS module_title,
+      COUNT(a.id) FILTER (WHERE a.submitted_at IS NOT NULL)::int AS submitted,
+      COUNT(a.id) FILTER (WHERE a.result_published_at IS NOT NULL)::int AS published
+      FROM exams e JOIN modules m ON m.id=e.module_id LEFT JOIN exam_attempts a ON a.exam_id=e.id
+      WHERE e.course_id=$1 AND ($2::uuid IS NULL OR e.module_id=$2) GROUP BY e.id, m.title ORDER BY m.title, e.created_at`, [courseId, moduleId || null])).rows as { exam_id: string; title: string; module_title: string; submitted: number; published: number }[];
+  });
+}
+/** Release (or hide) every submitted result for all exams in a course or one module. */
+export async function publishScopeResults(courseId: unknown, moduleId: unknown, published: unknown) {
+  if (!isUuid(courseId) || (moduleId && !isUuid(moduleId)) || typeof published !== 'boolean') throw new LearningError('Invalid result publication request.');
+  return inTransaction(async (db) => {
+    await finalizeExpired(db);
+    const rows = await db.query(`UPDATE exam_attempts a SET result_published_at=CASE WHEN $3 THEN COALESCE(a.result_published_at,clock_timestamp()) ELSE NULL END
+      FROM exams e WHERE e.id=a.exam_id AND e.course_id=$1 AND ($2::uuid IS NULL OR e.module_id=$2) AND a.submitted_at IS NOT NULL RETURNING a.id`, [courseId, moduleId || null, published]);
+    return { updated: rows.rowCount || 0 };
   });
 }

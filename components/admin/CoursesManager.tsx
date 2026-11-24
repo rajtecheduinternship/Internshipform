@@ -8,6 +8,7 @@ import { useAdminCopy } from '@/components/admin/copy';
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useAdminDraft, useAdminNavigation } from './UnsavedChanges';
+import SyllabusPanel from './SyllabusPanel';
 import { api } from './api';
 import { Badge, ConfirmDialog, Drawer, Empty, ErrorNote, Thumb } from '@/components/ui';
 
@@ -217,6 +218,8 @@ function CourseEditor({ id, allModules, onClose, onChanged }: { id: string | nul
           </div>
           <button className="ui-btn ui-btn-primary" disabled={!f.title.trim()} onClick={saveDetails}>{saving ? <BusyText>{t("Saving…")}</BusyText> : courseId ? t("Save details") : t("Create course")}</button>
         </div>
+
+        {courseId ? <SyllabusPanel courseId={courseId} /> : <div className="ui-muted">{t("Create the course first, then upload its syllabus.")}</div>}
 
         <div>
           {mandatory.length > 0 && (
