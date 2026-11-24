@@ -133,7 +133,7 @@ export async function attemptExam(args: { examId: string; courseId: string | nul
   return inTransaction(async (db) => {
     const exam = (await db.query(`SELECT e.*, true AS eligible
       FROM exams e JOIN courses c ON c.id=e.course_id JOIN modules m ON m.id=e.module_id
-      WHERE ((${visible}) ${args.action === 'read' ? `OR (e.course_id=$1 AND c.is_published AND EXISTS (SELECT 1 FROM exam_attempts a WHERE a.exam_id=e.id AND a.student_id=$2 AND a.result_published_at IS NOT NULL))` : ''}) AND e.id=$3 FOR SHARE OF e`, [args.courseId, args.studentId, args.examId])).rows[0];
+      WHERE ((${visible}) ${args.action === 'read' ? `OR (e.course_id=$1 AND c.is_published AND EXISTS (SELECT 1 FROM exam_attempts a WHERE a.exam_id=e.id AND a.student_id=$2 AND a.result_published_at IS NOT NULL))` : ''}) AND e.id=$3 AND $2::uuid IS NOT NULL FOR SHARE OF e`, [args.courseId, args.studentId, args.examId])).rows[0];
     if (!exam) throw new LearningError('Exam not available.', 404);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`exam:${args.examId}:${args.studentId}`]);
     let attempt = (await db.query('SELECT * FROM exam_attempts WHERE exam_id=$1 AND student_id=$2 FOR UPDATE', [args.examId, args.studentId])).rows[0];
