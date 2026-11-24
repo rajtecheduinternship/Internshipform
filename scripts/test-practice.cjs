@@ -107,6 +107,7 @@ const { setup, load } = require('./lms-test-harness.cjs');
     assert.equal((await pool.query('SELECT COUNT(*)::int n FROM practice_attempts')).rows[0].n, 0);
     await assert.rejects(practice.deletePractice(p.id), /not found/);
     await assert.rejects(practice.practiceAttempt({ ...base, action: 'read' }), /not available/);
+    await assert.rejects(practice.practiceHistory(p.id, A, s1), /not available/);
     console.log('practice exam rules ok');
   } finally { await h.cleanup(); }
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -158,6 +158,8 @@ export async function practiceAttempt(args: { practiceId: string; courseId: stri
 /** Every finished attempt of this student on one practice exam, newest first. */
 export async function practiceHistory(practiceId: string, courseId: string | null | undefined, studentId: string) {
   if (!isUuid(practiceId) || !isUuid(courseId)) throw new LearningError('Practice exam not available.', 404);
+  const open = await getPgPool().query(`SELECT 1 FROM practice_exams p JOIN courses c ON c.id=p.course_id JOIN modules m ON m.id=p.module_id WHERE ${visible} AND p.id=$2`, [courseId, practiceId]);
+  if (!open.rowCount) throw new LearningError('Practice exam not available.', 404);
   const r = await getPgPool().query(`SELECT a.id, a.submitted_at, a.correct_count, jsonb_array_length(a.questions) AS total, a.score_percent::float, a.passed
     FROM practice_attempts a JOIN practice_exams p ON p.id=a.practice_id JOIN courses c ON c.id=p.course_id JOIN modules m ON m.id=p.module_id
     WHERE ${visible} AND p.id=$3 AND a.student_id=$2 AND a.submitted_at IS NOT NULL ORDER BY a.submitted_at DESC LIMIT 100`, [courseId, studentId, practiceId]);
