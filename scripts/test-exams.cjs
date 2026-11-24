@@ -40,8 +40,8 @@ const { setup, load } = require('./lms-test-harness.cjs');
     assert.equal((await exams.studentExams(a, student)).length, 0);
     await assert.rejects(exams.attemptExam(args), /not available/);
     await exams.publishExam(exam.id, true);
-    assert.equal((await exams.studentExams(a, student))[0].eligible, false);
-    await assert.rejects(exams.attemptExam(args), /Complete/);
+    // Module completion is no longer required: a published exam is startable immediately.
+    assert.equal((await exams.studentExams(a, student))[0].eligible, true);
     const video = (await pool.query("INSERT INTO videos(module_id,title,youtube_video_id,duration_seconds,is_published) VALUES($1,'Lesson','test',10,true) RETURNING *", [m])).rows[0];
     await lms.saveProgress({ studentId: student, studentEmail: 'exam@example.test', video, intervals: [[0,10]], position: 10 });
     const [one, two] = await Promise.all([exams.attemptExam(args), exams.attemptExam(args)]);

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { useCopy } from '@/components/help/i18n';
 import ExamResults from './ExamResults';
+import ScopeResults from './ScopeResults';
 import EditorDrawer from './EditorDrawer';
 import { useAdminDraft } from './UnsavedChanges';
 import { classInput, classInstant } from '@/lib/class-calendar';
@@ -11,7 +12,7 @@ import type { ExamSummary } from '@/lib/exams';
 type Course = { id: string; title: string };
 type Module = Course & { courses: Course[]; is_mandatory: boolean };
 const emptyQuestion = { prompt: '', options: '', answer_index: 0 };
-const emptyExam = { title: '', duration_minutes: 30, pass_percent: 50, requires_module_completion: true, opens_at: '', closes_at: '', question_ids: [] as string[] };
+const emptyExam = { title: '', duration_minutes: 30, pass_percent: 50, requires_module_completion: false, opens_at: '', closes_at: '', question_ids: [] as string[] };
 export default function ExamsManager() {
   const t = useCopy();
   const [courses, setCourses] = useState<Course[]>([]); const [modules, setModules] = useState<Module[]>([]);
@@ -103,7 +104,7 @@ export default function ExamsManager() {
         <button className="ui-btn ui-btn-primary" disabled={busy} onClick={() => openResults(exam)}>{t('View results', 'परिणाम देखें')}</button>
       </div></article>)}
     </>}
-    {view === 'results' && <><h2 ref={resultHeading} tabIndex={-1} className="ui-h2" style={{ scrollMarginTop: 100 }}>{t('Examination results', 'परीक्षा परिणाम')}{resultExam ? ` · ${resultExam.title}` : ''}</h2><label>{t('Choose examination', 'परीक्षा चुनें')}<select className="ui-field" value={resultExam?.id || ''} onChange={(e) => setResultExam(exams.find((x) => x.id === e.target.value) || null)}><option value="">{t('Choose examination', 'परीक्षा चुनें')}</option>{shownExams.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>{resultExam && <ExamResults key={resultExam.id} examId={resultExam.id} />}</>}
+    {view === 'results' && <><h2 ref={resultHeading} tabIndex={-1} className="ui-h2" style={{ scrollMarginTop: 100 }}>{t('Examination results', 'परीक्षा परिणाम')}{resultExam ? ` · ${resultExam.title}` : ''}</h2><label>{t('Choose examination', 'परीक्षा चुनें')}<select className="ui-field" value={resultExam?.id || ''} onChange={(e) => setResultExam(exams.find((x) => x.id === e.target.value) || null)}><option value="">{t('Choose examination', 'परीक्षा चुनें')}</option>{shownExams.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>{courseId ? <ScopeResults key={`${courseId}:${moduleId}`} courseId={courseId} moduleId={moduleId} onOpenExam={(id) => setResultExam(exams.find((x) => x.id === id) || null)} /> : <p>{t('Choose a course (and optionally a module) above to publish results for all its exams at once.', 'किसी कोर्स (और चाहें तो मॉड्यूल) को चुनें, ताकि उसकी सभी परीक्षाओं के परिणाम एक साथ प्रकाशित हों।')}</p>}{resultExam && <ExamResults key={resultExam.id} examId={resultExam.id} />}</>}
     {panel && <EditorDrawer title={panel === 'question' ? (questionId ? t('Edit bank question', 'बैंक प्रश्न बदलें') : t('Add question', 'प्रश्न जोड़ें')) : panel === 'import' ? t('Import Word questions', 'Word प्रश्न आयात करें') : editId ? t('Edit draft exam', 'ड्राफ्ट परीक्षा बदलें') : t('Create exam', 'परीक्षा बनाएँ')} onClose={closePanel} busy={busy}>
       {error && <p role="alert">{error}</p>}
 {panel === 'question' && <>      <form className="ui-card ui-card-pad space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => {
@@ -131,7 +132,6 @@ export default function ExamsManager() {
         <label className="block">{t('Exam title', 'परीक्षा का नाम')}<input required maxLength={200} className="ui-field" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
         <div className="grid sm:grid-cols-2 gap-4"><label>{t('Duration (minutes)', 'अवधि (मिनट)')}<input type="number" min={1} max={300} required className="ui-field" value={draft.duration_minutes} onChange={(e) => setDraft({ ...draft, duration_minutes: Number(e.target.value) })} /></label><label>{t('Pass percentage', 'उत्तीर्ण प्रतिशत')}<input type="number" min={0} max={100} required className="ui-field" value={draft.pass_percent} onChange={(e) => setDraft({ ...draft, pass_percent: Number(e.target.value) })} /></label></div>
         <div className="grid sm:grid-cols-2 gap-4">{(['opens_at', 'closes_at'] as const).map((key) => <label key={key}>{key === 'opens_at' ? t('Opens (IST, optional)', 'शुरू (IST, वैकल्पिक)') : t('Closes (IST, optional)', 'समाप्त (IST, वैकल्पिक)')}<input type="datetime-local" className="ui-field" value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></label>)}</div>
-        <label className="flex gap-2"><input type="checkbox" checked={draft.requires_module_completion} onChange={(e) => setDraft({ ...draft, requires_module_completion: e.target.checked })} />{t('Require published module lessons to be completed before starting', 'शुरू करने से पहले मॉड्यूल के प्रकाशित पाठ पूरे करना आवश्यक है')}</label>
         <fieldset className="space-y-2 max-h-96 overflow-auto"><legend>{t('Select bank questions (1–200)', 'बैंक प्रश्न चुनें (1–200)')} · {draft.question_ids.length}</legend>{availableQuestions.map((q) => <div key={q.id} className="border-t pt-2"><label className="flex gap-2"><input type="checkbox" checked={draft.question_ids.includes(q.id)} onChange={(e) => setDraft({ ...draft, question_ids: e.target.checked ? [...draft.question_ids, q.id] : draft.question_ids.filter((id) => id !== q.id) })} />{q.prompt}</label><small>{t('Answer', 'उत्तर')}: {q.options[q.answer_index]}</small></div>)}</fieldset>
         <p>{t('Publishing freezes questions, options, answers and rules. Make a new exam for a retake or any later change. Closing time may shorten the student’s timer.', 'प्रकाशित करने पर प्रश्न, विकल्प, उत्तर और नियम स्थायी हो जाते हैं। दोबारा परीक्षा या बाद के बदलाव के लिए नई परीक्षा बनाएँ। समाप्ति समय छात्र की समय-सीमा कम कर सकता है।')}</p>
         <button className="ui-btn ui-btn-primary" disabled={busy || !moduleId || !draft.question_ids.length}>{t('Save draft exam', 'ड्राफ्ट परीक्षा सेव करें')}</button>{editId && <button type="button" className="ui-btn ml-2" onClick={closePanel}>{t('Cancel edit', 'बदलाव छोड़ें')}</button>}
