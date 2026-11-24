@@ -254,6 +254,17 @@ export async function saveProgress(args: {
        RETURNING total_seconds_watched, completion_percentage, is_completed, last_watched_position`,
       [args.studentId, args.studentEmail, video.id, seconds, pct, completed, position, JSON.stringify(merged)]
     );
+    // Credit newly watched seconds to the student's latest session for this video, so the admin
+    // dashboard's daily chart and per-video stats (which sum watch_sessions.duration_seconds) have data.
+    const gained = seconds - prevSeconds;
+    if (gained > 0) {
+      await client.query(
+        `UPDATE watch_sessions SET duration_seconds = duration_seconds + $3, end_time = NOW()
+          WHERE id = (SELECT id FROM watch_sessions WHERE student_email = $1 AND video_id = $2
+                       AND start_time > NOW() - INTERVAL '12 hours' ORDER BY start_time DESC LIMIT 1)`,
+        [args.studentEmail, video.id, gained]
+      );
+    }
     await client.query('COMMIT');
     return { data: res.rows[0], error: null };
   } catch (err) {
